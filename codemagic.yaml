@@ -1,0 +1,29 @@
+# codemagic.yaml
+workflows:
+  react-native-android:
+    name: UOFK Chem Android Build
+    environment:
+      vars:
+        EXPO_TOKEN: hJr5aBsOchGLpKQKvOUf0PNRZOzflu1A14Amc_g5
+      node: 20.19.2
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Fix Expo dependencies
+        script: |
+          npx expo install --fix
+      - name: Install EAS CLI
+        script: |
+          npm install -g eas-cli
+      - name: Build APK
+        script: |
+          eas init --non-interactive --force
+          eas build --platform android --profile preview --non-interactive
+    artifacts:
+      - build/**/*.apk
