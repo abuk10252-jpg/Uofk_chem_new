@@ -13,9 +13,11 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// تهيئة Firebase مرة واحدة فقط
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// try/catch يمنع كراش "auth/already-initialized" لو الملف اتنفذ أكتر من مرة
+// تهيئة Auth مع AsyncStorage للاستمرارية
+// (try/catch لمنع كراش "auth/already-initialized" لو الملف اتنفذ أكتر من مرة)
 let auth;
 try {
   auth = initializeAuth(app, {
@@ -27,4 +29,4 @@ try {
 
 const db = getFirestore(app);
 
-export { app, auth, db };
+export { auth, db };

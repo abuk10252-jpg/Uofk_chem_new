@@ -2,7 +2,7 @@
   "expo": {
     "name": "UofK Chem",
     "slug": "uofk-chem",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "uofkchem",
@@ -38,6 +38,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#002147"
         }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
       ]
     ],
 
@@ -46,6 +52,7 @@
     },
 
     "extra": {
+      "API_URL": "https://server-2-xpsh.onrender.com/api",
       "router": {}
     }
   }

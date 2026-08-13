@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
+  User,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
-// role = الصلاحية (student/admin/super_admin)
-// status = حالة الموافقة (pending/approved/rejected) - منفصلة عن role
+// ✅ أزلنا useRouter اللي مش مستخدم
+
 type UserRole = 'student' | 'admin' | 'super_admin' | null;
 type UserStatus = 'pending' | 'approved' | 'rejected' | null;
 
@@ -25,32 +27,33 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; message: string; needsApproval?: boolean }>;
   signUp: (email: string, password: string, displayName: string, universityId: string) => Promise<{ success: boolean; message: string }>;
-  logout: () => Promise<void>;
+  logout: () => Promise<{ success: boolean; message: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser) {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
-            const data = userDoc.data();
+            const userData = userDoc.data();
             setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email!,
-              role: data.role || 'student',
-              status: data.status || 'pending',
-              displayName: data.displayName,
-              universityId: data.universityId,
+              role: userData.role || 'student',
+              status: userData.status || 'pending',
+              displayName: userData.displayName,
+              universityId: userData.universityId,
             });
           } else {
             setUser({
@@ -60,39 +63,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               status: 'pending',
             });
           }
-        } catch (e) {
-          console.warn('Error loading user doc:', e);
+        } else {
           setUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error('Error fetching user data:', error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
-    return unsub;
+
+    return () => unsubscribe();
   }, []);
 
-  async function signIn(email: string, password: string) {
+  // حساب سوبر أدمن ثابت للتجربة - شغال حتى لو Firebase أو الباك إند فيهم مشكلة،
+  // لإنه مش بيعمل أي اتصال بالنت خالص. البيانات: test@admin.com / Test123456
+  // ملاحظة: بيتصفر لو قفلت التطبيق (مش محفوظ)، ده طبيعي وعادي للتجربة بس.
+  const TEST_ADMIN_EMAIL = 'test@admin.com';
+  const TEST_ADMIN_PASSWORD = 'Test123456';
+
+  const signIn = async (email: string, password: string) => {
+    if (email.trim().toLowerCase() === TEST_ADMIN_EMAIL && password === TEST_ADMIN_PASSWORD) {
+      setUser({
+        uid: 'local-test-super-admin',
+        email: TEST_ADMIN_EMAIL,
+        role: 'super_admin',
+        status: 'approved',
+        displayName: 'حساب تجربة (سوبر أدمن)',
+      });
+      return { success: true, message: 'دخول تجريبي كسوبر أدمن' };
+    }
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      return { success: true, message: 'تم تسجيل الدخول بنجاح' };
-    } catch (e: any) {
-      let message = 'حدث خطأ أثناء تسجيل الدخول';
-      if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.status === 'rejected') {
+          await signOut(auth);
+          return { success: false, message: 'تم رفض طلب حسابك من قبل الإدارة' };
+        }
+        if (userData.status === 'pending' || !userData.status) {
+          return {
+            success: true,
+            message: 'حسابك قيد المراجعة. سيتم تفعيل حسابك قريباً.',
+            needsApproval: true,
+          };
+        }
+        return { success: true, message: 'تم تسجيل الدخول بنجاح' };
+      } else {
+        await signOut(auth);
+        return { success: false, message: 'بيانات المستخدم غير موجودة' };
+      }
+    } catch (error: any) {
+      let message = 'حدث خطأ في تسجيل الدخول';
+      if (error.code === 'auth/user-not-found') {
+        message = 'البريد الإلكتروني غير مسجل';
+      } else if (error.code === 'auth/wrong-password') {
+        message = 'كلمة المرور غير صحيحة';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'البريد الإلكتروني غير صالح';
+      } else if (error.code === 'auth/invalid-credential') {
         message = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
-      } else if (e.code === 'auth/invalid-email') {
-        message = 'البريد الإلكتروني غير صحيح';
-      } else if (e.code === 'auth/too-many-requests') {
-        message = 'محاولات كتير خطأ، حاول تاني بعد شوية';
+      } else if (error.code === 'auth/too-many-requests') {
+        message = 'محاولات كثيرة. الرجاء المحاولة لاحقاً';
       }
       return { success: false, message };
     }
-  }
+  };
 
-  async function signUp(email: string, password: string, displayName: string, universityId: string) {
+  const signUp = async (email: string, password: string, displayName: string, universityId: string) => {
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await setDoc(doc(db, 'users', cred.user.uid), {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
         email,
         displayName,
         universityId,
@@ -100,53 +146,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: 'pending',
         createdAt: new Date().toISOString(),
       });
-      return { success: true, message: 'تم إنشاء الحساب بنجاح، في انتظار الموافقة' };
-    } catch (e: any) {
-      let message = 'حدث خطأ أثناء إنشاء الحساب';
-      if (e.code === 'auth/email-already-in-use') {
+
+      return {
+        success: true,
+        message: 'تم إنشاء الحساب بنجاح. في انتظار موافقة المشرف.',
+      };
+    } catch (error: any) {
+      let message = 'حدث خطأ في إنشاء الحساب';
+      if (error.code === 'auth/email-already-in-use') {
         message = 'البريد الإلكتروني مستخدم بالفعل';
-      } else if (e.code === 'auth/invalid-email') {
-        message = 'البريد الإلكتروني غير صحيح';
-      } else if (e.code === 'auth/weak-password') {
-        message = 'كلمة المرور ضعيفة، لازم تكون 6 أحرف على الأقل';
+      } else if (error.code === 'auth/weak-password') {
+        message = 'كلمة المرور ضعيفة جداً';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'البريد الإلكتروني غير صالح';
       }
       return { success: false, message };
     }
-  }
+  };
 
-  async function logout() {
-    await signOut(auth);
-  }
-
-  async function refreshUser() {
-    if (!auth.currentUser) return;
+  const logout = async () => {
     try {
+      await signOut(auth);
+      setUser(null);
+      return { success: true, message: 'تم تسجيل الخروج بنجاح' };
+    } catch (error) {
+      setUser(null);
+      return { success: false, message: 'حدث خطأ في تسجيل الخروج' };
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      if (!auth.currentUser) return; // فيه حالة حساب التجربة برضو مش عندها currentUser حقيقي فهتترجع هنا وده تمام
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
-        const data = userDoc.data();
+        const userData = userDoc.data();
         setUser({
           uid: auth.currentUser.uid,
           email: auth.currentUser.email!,
-          role: data.role || 'student',
-          status: data.status || 'pending',
-          displayName: data.displayName,
-          universityId: data.universityId,
+          role: userData.role || 'student',
+          status: userData.status || 'pending',
+          displayName: userData.displayName,
+          universityId: userData.universityId,
         });
       }
-    } catch (e) {
-      console.warn('refreshUser error:', e);
+    } catch (error) {
+      console.warn('Error refreshing user:', error);
     }
-  }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true, message: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني' };
+    } catch (error: any) {
+      let message = 'حدث خطأ في إرسال رابط إعادة التعيين';
+      if (error.code === 'auth/user-not-found') {
+        message = 'البريد الإلكتروني غير مسجل';
+      }
+      return { success: false, message };
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, resetPassword, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  return useContext(AuthContext);
 }
