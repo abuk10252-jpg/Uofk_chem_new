@@ -52,7 +52,7 @@
     },
 
     "extra": {
-      "API_URL": "https://server-2-xpsh.onrender.com/api",
+      "API_URL": "https://server-naav.onrender.com/api",
       "router": {}
     }
   }
