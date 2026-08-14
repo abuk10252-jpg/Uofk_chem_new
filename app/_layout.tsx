@@ -1,17 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, ActivityIndicator, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, ActivityIndicator, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
-import * as Updates from 'expo-updates';
 
 SplashScreen.preventAutoHideAsync();
 
 // ============ شاشة عرض الكراش (بدل ما التطبيق يقفل من غير ما تعرف السبب) ============
-// كده أي خطأ هيبان مكتوب على الشاشة، وتقدر تاخد له screenshot وتبعتيه.
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   constructor(props: any) {
     super(props);
@@ -45,18 +43,15 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
   }
 }
 
-// بيمسك أي خطأ JS "قاتل" بيحصل برّه الـ render (مثلاً وقت تهيئة Firebase)
-// واللي عادةً بيقفل التطبيق فجأة من غير أي رسالة.
 function GlobalCrashCatcher({ children }: { children: React.ReactNode }) {
   const [fatalError, setFatalError] = useState<string | null>(null);
 
   useEffect(() => {
-    // @ts-ignore - ErrorUtils متاحة في بيئة React Native
+    // @ts-ignore
     const defaultHandler = global.ErrorUtils?.getGlobalHandler?.();
     // @ts-ignore
     global.ErrorUtils?.setGlobalHandler?.((error: any, isFatal?: boolean) => {
       setFatalError(`${isFatal ? '[Fatal] ' : ''}${error?.message || error}\n\n${error?.stack || ''}`);
-      // منسيبش الهاندلر الافتراضي يشتغل عشان التطبيق ميقفلش فجأة
     });
     return () => {
       // @ts-ignore
@@ -82,12 +77,36 @@ function GlobalCrashCatcher({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// ============ شاشة السبلاش المتحركة - النص بيبدأ كبير وبيصغر لحد ما يستقر في النص ============
+function AnimatedSplash() {
+  const scale = useRef(new Animated.Value(1.6)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <View style={styles.loadingContainer}>
+      <Animated.View style={{ opacity, transform: [{ scale }], alignItems: 'center' }}>
+        <Text style={styles.splashTitle}>UofK Chem</Text>
+        <View style={styles.splashDivider} />
+        <Text style={styles.splashSubtitle}>Designed by Academic Office 23.5</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 function RootLayoutNav() {
   const { user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const [appIsReady, setAppIsReady] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     async function loadFonts() {
@@ -104,31 +123,22 @@ function RootLayoutNav() {
     loadFonts();
   }, []);
 
-  const checkForUpdates = useCallback(async () => {
-    try {
-      const update = await Updates.checkForUpdateAsync();
-      if (update.isAvailable) {
-        await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync();
-      }
-    } catch (e) {
-      console.warn('Error checking for updates:', e);
-    }
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 6000);
+    return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    checkForUpdates();
-  }, [checkForUpdates]);
+  const effectivelyLoading = loading && !timedOut;
 
   useEffect(() => {
-    if (!fontLoaded || loading) return;
+    if (!fontLoaded || effectivelyLoading) return;
 
     if (!user) {
       router.replace('/login');
     } else if (user.status === 'pending' || !user.status) {
       router.replace('/pending');
     } else if (user.status === 'rejected') {
-      router.replace('/pending'); // شاشة pending بتبين رسالة "تم الرفض" لو الحالة rejected
+      router.replace('/pending');
     } else if (user.status === 'approved') {
       if (segments[0] === 'login' || segments[0] === 'pending' || segments[0] === undefined) {
         if (user.role === 'super_admin') {
@@ -140,26 +150,21 @@ function RootLayoutNav() {
         }
       }
     }
-  }, [user, loading, fontLoaded, segments]);
+  }, [user, effectivelyLoading, fontLoaded, segments]);
 
   const onLayoutRootView = useCallback(async () => {
-    if (fontLoaded && !loading) {
+    if (fontLoaded && !effectivelyLoading) {
       await SplashScreen.hideAsync();
       setAppIsReady(true);
     }
-  }, [fontLoaded, loading]);
+  }, [fontLoaded, effectivelyLoading]);
 
   useEffect(() => {
     onLayoutRootView();
   }, [onLayoutRootView]);
 
-  if (!appIsReady || !fontLoaded || loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>جاري التحميل...</Text>
-      </View>
-    );
+  if (!appIsReady || !fontLoaded || effectivelyLoading) {
+    return <AnimatedSplash />;
   }
 
   return (
@@ -203,13 +208,33 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#002147',
   },
   loadingText: {
     marginTop: 20,
     fontSize: 16,
     color: '#007AFF',
     fontFamily: 'System',
+  },
+  splashTitle: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  splashDivider: {
+    width: 60,
+    height: 2,
+    backgroundColor: '#D4AF37',
+    marginVertical: 14,
+    alignSelf: 'center',
+  },
+  splashSubtitle: {
+    fontSize: 13,
+    color: '#D4AF37',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
   crashContainer: { flex: 1, backgroundColor: '#FFF0F0' },
   crashTitle: { fontSize: 20, fontWeight: '800', color: '#B91C1C', marginBottom: 6, textAlign: 'right' },
