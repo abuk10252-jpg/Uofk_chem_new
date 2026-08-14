@@ -9,6 +9,11 @@ import * as Font from 'expo-font';
 
 SplashScreen.preventAutoHideAsync();
 
+// إخفاء الـ Splash فوراً بعد 3 ثواني مهما حصل (حتى لو Auth وقع)
+setTimeout(() => {
+  SplashScreen.hideAsync().catch(() => {});
+}, 3000);
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   constructor(props: any) {
     super(props);
@@ -19,6 +24,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
   }
   componentDidCatch(error: Error, info: any) {
     console.error('App crash caught:', error, info);
+    SplashScreen.hideAsync().catch(() => {});
   }
   render() {
     if (this.state.error) {
@@ -50,6 +56,7 @@ function GlobalCrashCatcher({ children }: { children: React.ReactNode }) {
     const defaultHandler = global.ErrorUtils?.getGlobalHandler?.();
     // @ts-ignore
     global.ErrorUtils?.setGlobalHandler?.((error: any, isFatal?: boolean) => {
+      SplashScreen.hideAsync().catch(() => {});
       setFatalError(`\( {isFatal ? '[Fatal] ' : ''} \){error?.message || error}\n\n${error?.stack || ''}`);
     });
     return () => {
@@ -122,12 +129,10 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(async () => {
-      try {
-        await SplashScreen.hideAsync();
-      } catch (e) {}
+    const t = setTimeout(() => {
       setTimedOut(true);
       setAppIsReady(true);
+      SplashScreen.hideAsync().catch(() => {});
     }, 4000);
     return () => clearTimeout(t);
   }, []);
@@ -156,18 +161,12 @@ function RootLayoutNav() {
     }
   }, [user, effectivelyLoading, fontLoaded, segments]);
 
-  const onLayoutRootView = useCallback(async () => {
+  useEffect(() => {
     if (fontLoaded && !effectivelyLoading) {
-      try {
-        await SplashScreen.hideAsync();
-      } catch (e) {}
+      SplashScreen.hideAsync().catch(() => {});
       setAppIsReady(true);
     }
   }, [fontLoaded, effectivelyLoading]);
-
-  useEffect(() => {
-    onLayoutRootView();
-  }, [onLayoutRootView]);
 
   if (!appIsReady && !timedOut) {
     return <AnimatedSplash />;
