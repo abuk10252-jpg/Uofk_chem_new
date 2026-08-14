@@ -33,9 +33,19 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/icon.png",
+          "imageWidth": 150,
+          "resizeMode": "contain",
           "backgroundColor": "#002147"
         }
       ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
+    ],
       [
         "expo-document-picker",
         {
