@@ -8,9 +8,7 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
-
-// ✅ أزلنا useRouter اللي مش مستخدم
+import { getFirebaseAuth, getFirebaseDb } from '../firebase';
 
 type UserRole = 'student' | 'admin' | 'super_admin' | null;
 type UserStatus = 'pending' | 'approved' | 'rejected' | null;
@@ -39,6 +37,9 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const auth = getFirebaseAuth();
+  const db = getFirebaseDb();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -77,9 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // حساب سوبر أدمن ثابت للتجربة - شغال حتى لو Firebase أو الباك إند فيهم مشكلة،
-  // لإنه مش بيعمل أي اتصال بالنت خالص. البيانات: test@admin.com / Test123456
-  // ملاحظة: بيتصفر لو قفلت التطبيق (مش محفوظ)، ده طبيعي وعادي للتجربة بس.
   const TEST_ADMIN_EMAIL = 'test@admin.com';
   const TEST_ADMIN_PASSWORD = 'Test123456';
 
@@ -177,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      if (!auth.currentUser) return; // فيه حالة حساب التجربة برضو مش عندها currentUser حقيقي فهتترجع هنا وده تمام
+      if (!auth.currentUser) return;
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
