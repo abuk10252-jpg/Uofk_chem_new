@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
-  User,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
+  Auth,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, Firestore } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseDb } from '../firebase';
 
 type UserRole = 'student' | 'admin' | 'super_admin' | null;
@@ -38,13 +38,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const auth = getFirebaseAuth();
-  const db = getFirebaseDb();
+  let auth: Auth | null = null;
+  let db: Firestore | null = null;
+
+  try {
+    auth = getFirebaseAuth();
+    db = getFirebaseDb();
+  } catch (e) {
+    console.error('Firebase init failed:', e);
+  }
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
-        if (firebaseUser) {
+        if (firebaseUser && db) {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
@@ -90,7 +102,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: 'approved',
         displayName: 'حساب تجربة (سوبر أدمن)',
       });
+      setLoading(false);
       return { success: true, message: 'دخول تجريبي كسوبر أدمن' };
+    }
+
+    if (!auth || !db) {
+      return { success: false, message: 'خدمة المصادقة غير متاحة حالياً' };
     }
 
     try {
@@ -133,6 +150,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, displayName: string, universityId: string) => {
+    if (!auth || !db) {
+      return { success: false, message: 'خدمة المصادقة غير متاحة حالياً' };
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -164,7 +185,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      if (auth) {
+        await signOut(auth);
+      }
       setUser(null);
       return { success: true, message: 'تم تسجيل الخروج بنجاح' };
     } catch (error) {
@@ -175,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      if (!auth.currentUser) return;
+      if (!auth?.currentUser || !db) return;
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
@@ -194,6 +217,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
+    if (!auth) {
+      return { success: false, message: 'خدمة المصادقة غير متاحة حالياً' };
+    }
+
     try {
       await sendPasswordResetEmail(auth, email);
       return { success: true, message: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني' };
