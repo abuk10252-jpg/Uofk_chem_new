@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeAuth, getReactNativePersistence, getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -13,20 +13,31 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// تهيئة Firebase مرة واحدة فقط
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+let _app: FirebaseApp | null = null;
+let _auth: Auth | null = null;
+let _db: Firestore | null = null;
 
-// تهيئة Auth مع AsyncStorage للاستمرارية
-// (try/catch لمنع كراش "auth/already-initialized" لو الملف اتنفذ أكتر من مرة)
-let auth;
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch (e) {
-  auth = getAuth(app);
+export function getFirebaseApp(): FirebaseApp {
+  if (_app) return _app;
+  _app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  return _app;
 }
 
-const db = getFirestore(app);
+export function getFirebaseAuth(): Auth {
+  if (_auth) return _auth;
+  const app = getFirebaseApp();
+  try {
+    _auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch (e) {
+    _auth = getAuth(app);
+  }
+  return _auth;
+}
 
-export { auth, db };
+export function getFirebaseDb(): Firestore {
+  if (_db) return _db;
+  _db = getFirestore(getFirebaseApp());
+  return _db;
+}
