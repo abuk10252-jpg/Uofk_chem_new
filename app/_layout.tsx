@@ -9,7 +9,7 @@ import * as Font from 'expo-font';
 
 SplashScreen.preventAutoHideAsync();
 
-// ============ شاشة عرض الكراش (بدل ما التطبيق يقفل من غير ما تعرف السبب) ============
+// ============ شاشة عرض الكراش ============
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   constructor(props: any) {
     super(props);
@@ -51,7 +51,7 @@ function GlobalCrashCatcher({ children }: { children: React.ReactNode }) {
     const defaultHandler = global.ErrorUtils?.getGlobalHandler?.();
     // @ts-ignore
     global.ErrorUtils?.setGlobalHandler?.((error: any, isFatal?: boolean) => {
-      setFatalError(`${isFatal ? '[Fatal] ' : ''}${error?.message || error}\n\n${error?.stack || ''}`);
+      setFatalError(`\( {isFatal ? '[Fatal] ' : ''} \){error?.message || error}\n\n${error?.stack || ''}`);
     });
     return () => {
       // @ts-ignore
@@ -77,7 +77,7 @@ function GlobalCrashCatcher({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// ============ شاشة السبلاش المتحركة - النص بيبدأ كبير وبيصغر لحد ما يستقر في النص ============
+// ============ شاشة السبلاش المتحركة ============
 function AnimatedSplash() {
   const scale = useRef(new Animated.Value(1.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -123,8 +123,15 @@ function RootLayoutNav() {
     loadFonts();
   }, []);
 
+  // إجبار إخفاء الـ Splash بعد 4 ثواني مهما حصل
   useEffect(() => {
-    const t = setTimeout(() => setTimedOut(true), 6000);
+    const t = setTimeout(async () => {
+      try {
+        await SplashScreen.hideAsync();
+      } catch (e) {}
+      setTimedOut(true);
+      setAppIsReady(true);
+    }, 4000);
     return () => clearTimeout(t);
   }, []);
 
@@ -154,7 +161,9 @@ function RootLayoutNav() {
 
   const onLayoutRootView = useCallback(async () => {
     if (fontLoaded && !effectivelyLoading) {
-      await SplashScreen.hideAsync();
+      try {
+        await SplashScreen.hideAsync();
+      } catch (e) {}
       setAppIsReady(true);
     }
   }, [fontLoaded, effectivelyLoading]);
@@ -163,7 +172,7 @@ function RootLayoutNav() {
     onLayoutRootView();
   }, [onLayoutRootView]);
 
-  if (!appIsReady || !fontLoaded || effectivelyLoading) {
+  if (!appIsReady && !timedOut) {
     return <AnimatedSplash />;
   }
 
@@ -234,14 +243,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#D4AF37',
     textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  crashContainer: { flex: 1, backgroundColor: '#FFF0F0' },
-  crashTitle: { fontSize: 20, fontWeight: '800', color: '#B91C1C', marginBottom: 6, textAlign: 'right' },
-  crashSubtitle: { fontSize: 14, color: '#7F1D1D', marginBottom: 16, textAlign: 'right' },
-  crashBox: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FECACA' },
-  crashText: { fontSize: 14, color: '#111', fontWeight: '700', textAlign: 'left' },
-  crashStack: { fontSize: 11, color: '#555', marginTop: 10, textAlign: 'left' },
-  crashBtn: { marginTop: 20, backgroundColor: '#B91C1C', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  crashBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-});
+    letterSpacing: 0.5
