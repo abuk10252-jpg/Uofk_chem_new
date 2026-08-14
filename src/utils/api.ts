@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { auth } from '../firebase';
+import { getFirebaseAuth } from '../firebase';
 
 const BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL ||
@@ -18,8 +18,8 @@ if (!BASE_URL) {
  */
 async function getFreshToken(): Promise<string | null> {
   try {
+    const auth = getFirebaseAuth();
     if (auth.currentUser) {
-      // force: true يجدد التوكن لو انتهت صلاحيته
       const token = await auth.currentUser.getIdToken(true);
       await AsyncStorage.setItem("token", token);
       return token;
@@ -28,7 +28,6 @@ async function getFreshToken(): Promise<string | null> {
     console.warn("Firebase getIdToken failed, falling back to stored token:", e);
   }
 
-  // fallback للـ AsyncStorage
   try {
     return await AsyncStorage.getItem("token");
   } catch (e) {
@@ -45,7 +44,6 @@ export async function apiCall(
   options: RequestInit = {}
 ): Promise<any> {
   try {
-    // التحقق من الإنترنت بشكل أدق
     const netInfo = await NetInfo.fetch();
     if (!netInfo.isConnected || !netInfo.isInternetReachable) {
       console.warn("No internet connection");
@@ -58,7 +56,6 @@ export async function apiCall(
       "Content-Type": "application/json",
     };
 
-    // دمج الهيدرز بشكل آمن
     if (options.headers) {
       const optHeaders = options.headers as Record<string, string>;
       Object.keys(optHeaders).forEach(key => {
@@ -78,14 +75,13 @@ export async function apiCall(
     let response: Response;
 
     try {
-      response = await fetch(`${BASE_URL}${endpoint}`, {
+      response = await fetch(`\( {BASE_URL} \){endpoint}`, {
         ...options,
         headers,
         signal: controller.signal,
       });
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
-      // التحقق لو الخطأ بسبب timeout
       if (fetchError?.name === 'AbortError') {
         console.warn(`Request timeout on ${endpoint}`);
         return { timeout: true };
@@ -104,7 +100,6 @@ export async function apiCall(
     try {
       return await response.json();
     } catch {
-      // لو الرد مو JSON رجع null
       return null;
     }
 
@@ -114,16 +109,10 @@ export async function apiCall(
   }
 }
 
-/**
- * GET
- */
 export async function apiGet(endpoint: string) {
   return apiCall(endpoint, { method: 'GET' });
 }
 
-/**
- * POST
- */
 export async function apiPost(endpoint: string, body: any) {
   return apiCall(endpoint, {
     method: 'POST',
@@ -131,9 +120,6 @@ export async function apiPost(endpoint: string, body: any) {
   });
 }
 
-/**
- * PUT
- */
 export async function apiPut(endpoint: string, body: any) {
   return apiCall(endpoint, {
     method: 'PUT',
@@ -141,16 +127,10 @@ export async function apiPut(endpoint: string, body: any) {
   });
 }
 
-/**
- * DELETE
- */
 export async function apiDelete(endpoint: string) {
   return apiCall(endpoint, { method: 'DELETE' });
 }
 
-/**
- * رفع ملف (multipart/form-data)
- */
 export async function uploadFile(
   endpoint: string,
   formData: FormData
@@ -168,12 +148,12 @@ export async function uploadFile(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 60000); // زيادة timeout لرفع الملفات
+    }, 60000);
 
     let response: Response;
 
     try {
-      response = await fetch(`${BASE_URL}${endpoint}`, {
+      response = await fetch(`\( {BASE_URL} \){endpoint}`, {
         method: 'POST',
         headers,
         body: formData,
