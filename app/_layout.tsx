@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, ActivityIndicator, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
@@ -9,7 +9,6 @@ import * as Font from 'expo-font';
 
 SplashScreen.preventAutoHideAsync();
 
-// ============ شاشة عرض الكراش ============
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   constructor(props: any) {
     super(props);
@@ -77,7 +76,6 @@ function GlobalCrashCatcher({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// ============ شاشة السبلاش المتحركة ============
 function AnimatedSplash() {
   const scale = useRef(new Animated.Value(1.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -112,7 +110,7 @@ function RootLayoutNav() {
     async function loadFonts() {
       try {
         await Font.loadAsync({
-          'SpaceMono': require('../assets/fonts/SpaceMono-Regular.ttf'),
+          SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
         });
       } catch (e) {
         console.warn('Error loading fonts:', e);
@@ -123,7 +121,6 @@ function RootLayoutNav() {
     loadFonts();
   }, []);
 
-  // إجبار إخفاء الـ Splash بعد 4 ثواني مهما حصل
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
@@ -219,12 +216,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#002147',
   },
-  loadingText: {
-    marginTop: 20,
-    fontSize: 16,
-    color: '#007AFF',
-    fontFamily: 'System',
-  },
   splashTitle: {
     fontSize: 38,
     fontWeight: '800',
@@ -243,4 +234,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#D4AF37',
     textAlign: 'center',
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
+  },
+  crashContainer: {
+    flex: 1,
+    backgroundColor: '#FFF0F0',
+  },
+  crashTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#B91C1C',
+    marginBottom: 6,
+    textAlign: 'right',
+  },
+  crashSubtitle: {
+    fontSize: 14,
+    color: '#7F1D1D',
+    marginBottom: 16,
+    textAlign: 'right',
+  },
+  crashBox: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  crashText: {
+    fontSize: 14,
+    color: '#111',
+    fontWeight: '700',
+    textAlign: 'left',
+  },
+  crashStack: {
+    fontSize: 11,
+    color: '#555',
+    marginTop: 10,
+    textAlign: 'left',
+  },
+  crashBtn: {
+    marginTop: 20,
+    backgroundColor: '#B91C1C',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  crashBtnText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+});
