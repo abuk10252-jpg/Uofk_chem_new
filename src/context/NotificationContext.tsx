@@ -4,13 +4,17 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
 // إعداد كيفية ظهور الإشعارات
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (e) {
+  console.warn('setNotificationHandler failed:', e);
+}
 
 interface NotificationContextType {
   expoPushToken: string | null;
