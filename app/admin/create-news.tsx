@@ -23,9 +23,7 @@ export default function CreateNewsScreen() {
 
   const [type, setType] = useState<'news' | 'poll' | 'quiz'>('news');
   const [title, setTitle] = useState('');
-  const [titleAr, setTitleAr] = useState('');
   const [content, setContent] = useState('');
-  const [contentAr, setContentAr] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [quizQuestions, setQuizQuestions] = useState<QuizQ[]>([
     { question: '', options: ['', '', '', ''], correct_answer: 0 }
@@ -33,7 +31,6 @@ export default function CreateNewsScreen() {
   const [timeLimit, setTimeLimit] = useState('10');
   const [loading, setLoading] = useState(false);
 
-  // Poll functions
   function addPollOption() {
     setPollOptions(prev => [...prev, '']);
   }
@@ -47,7 +44,6 @@ export default function CreateNewsScreen() {
     setPollOptions(prev => prev.filter((_, idx) => idx !== i));
   }
 
-  // Quiz functions
   function addQuestion() {
     setQuizQuestions(prev => [
       ...prev,
@@ -77,7 +73,6 @@ export default function CreateNewsScreen() {
   }
 
   async function handleCreate() {
-    // التحقق من العنوان
     if (!title.trim()) {
       Alert.alert(
         isArabic ? 'خطأ' : 'Error',
@@ -86,7 +81,6 @@ export default function CreateNewsScreen() {
       return;
     }
 
-    // التحقق من خيارات الاستطلاع
     if (type === 'poll') {
       const valid = pollOptions.filter(o => o.trim());
       if (valid.length < 2) {
@@ -98,7 +92,6 @@ export default function CreateNewsScreen() {
       }
     }
 
-    // التحقق من أسئلة الاختبار
     if (type === 'quiz') {
       for (let i = 0; i < quizQuestions.length; i++) {
         const q = quizQuestions[i];
@@ -127,9 +120,9 @@ export default function CreateNewsScreen() {
       const body: any = {
         type,
         title: title.trim(),
-        title_ar: titleAr.trim(),
+        title_ar: title.trim(),
         content: content.trim(),
-        content_ar: contentAr.trim(),
+        content_ar: content.trim(),
       };
 
       if (type === 'poll') {
@@ -209,7 +202,6 @@ export default function CreateNewsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* اختيار النوع */}
         <View style={styles.typeRow}>
           {(['news', 'poll', 'quiz'] as const).map(t => (
             <TouchableOpacity
@@ -232,63 +224,34 @@ export default function CreateNewsScreen() {
 
         <View style={styles.card}>
 
-          {/* العنوان */}
           <Text style={styles.label}>
-            {isArabic ? 'العنوان (إنجليزي) *' : 'Title (English) *'}
+            {isArabic ? 'العنوان *' : 'Title *'}
           </Text>
           <TextInput
             testID="news-title-input"
             style={styles.input}
             value={title}
             onChangeText={setTitle}
-            placeholder={isArabic ? 'أدخل العنوان...' : 'Enter title...'}
+            placeholder={isArabic ? 'أدخل العنوان (عربي أو إنجليزي)...' : 'Enter title (Arabic or English)...'}
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
           />
 
           <Text style={styles.label}>
-            {isArabic ? 'العنوان (عربي)' : 'Title (Arabic)'}
-          </Text>
-          <TextInput
-            style={[styles.input, { textAlign: 'right' }]}
-            value={titleAr}
-            onChangeText={setTitleAr}
-            placeholder="أدخل العنوان بالعربي..."
-            placeholderTextColor={Colors.textSecondary}
-            editable={!loading}
-          />
-
-          {/* المحتوى */}
-          <Text style={styles.label}>
-            {isArabic ? 'المحتوى (إنجليزي)' : 'Content (English)'}
+            {isArabic ? 'المحتوى' : 'Content'}
           </Text>
           <TextInput
             testID="news-content-input"
             style={[styles.input, styles.multiline]}
             value={content}
             onChangeText={setContent}
-            placeholder={isArabic ? 'اكتب المحتوى...' : 'Write content...'}
+            placeholder={isArabic ? 'اكتب المحتوى (عربي أو إنجليزي)...' : 'Write content (Arabic or English)...'}
             multiline
             numberOfLines={3}
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
           />
 
-          <Text style={styles.label}>
-            {isArabic ? 'المحتوى (عربي)' : 'Content (Arabic)'}
-          </Text>
-          <TextInput
-            style={[styles.input, styles.multiline, { textAlign: 'right' }]}
-            value={contentAr}
-            onChangeText={setContentAr}
-            placeholder="اكتب المحتوى بالعربي..."
-            multiline
-            numberOfLines={3}
-            placeholderTextColor={Colors.textSecondary}
-            editable={!loading}
-          />
-
-          {/* خيارات الاستطلاع */}
           {type === 'poll' && (
             <View>
               <Text style={styles.label}>
@@ -328,10 +291,8 @@ export default function CreateNewsScreen() {
             </View>
           )}
 
-          {/* أسئلة الاختبار */}
           {type === 'quiz' && (
             <View>
-              {/* وقت الاختبار */}
               <View style={styles.timeLimitRow}>
                 <Text style={styles.label}>
                   {isArabic ? 'وقت الاختبار (دقيقة)' : 'Time Limit (minutes)'}
@@ -417,7 +378,6 @@ export default function CreateNewsScreen() {
             </View>
           )}
 
-          {/* زر الإنشاء */}
           <TouchableOpacity
             testID="create-news-submit"
             style={[styles.btn, loading && { opacity: 0.7 }]}
