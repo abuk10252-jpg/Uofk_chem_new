@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
@@ -9,7 +9,6 @@ import * as Font from 'expo-font';
 
 SplashScreen.preventAutoHideAsync();
 
-// إخفاء الـ Splash فوراً بعد 3 ثواني مهما حصل (حتى لو Auth وقع)
 setTimeout(() => {
   SplashScreen.hideAsync().catch(() => {});
 }, 3000);
@@ -95,7 +94,7 @@ function AnimatedSplash() {
   }, []);
 
   return (
-    <View style={styles.loadingContainer}>
+    <View style={styles.splashOverlay}>
       <Animated.View style={{ opacity, transform: [{ scale }], alignItems: 'center' }}>
         <Text style={styles.splashTitle}>UofK Chem</Text>
         <View style={styles.splashDivider} />
@@ -109,9 +108,10 @@ function RootLayoutNav() {
   const { user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [appIsReady, setAppIsReady] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const navigationDone = useRef(false);
 
   useEffect(() => {
     async function loadFonts() {
@@ -131,7 +131,7 @@ function RootLayoutNav() {
   useEffect(() => {
     const t = setTimeout(() => {
       setTimedOut(true);
-      setAppIsReady(true);
+      setShowSplash(false);
       SplashScreen.hideAsync().catch(() => {});
     }, 4000);
     return () => clearTimeout(t);
@@ -139,17 +139,22 @@ function RootLayoutNav() {
 
   const effectivelyLoading = loading && !timedOut;
 
+  // التوجيه بعد ما الـ Stack يكون mounted والـ loading يخلص
   useEffect(() => {
     if (!fontLoaded || effectivelyLoading) return;
+    if (navigationDone.current) return;
 
-    if (!user) {
-      router.replace('/login');
-    } else if (user.status === 'pending' || !user.status) {
-      router.replace('/pending');
-    } else if (user.status === 'rejected') {
-      router.replace('/pending');
-    } else if (user.status === 'approved') {
-      if (segments[0] === 'login' || segments[0] === 'pending' || segments[0] === undefined) {
+    // تأخير بسيط عشان الـ Root Layout يخلص mount
+    const t = setTimeout(() => {
+      navigationDone.current = true;
+      setShowSplash(false);
+      SplashScreen.hideAsync().catch(() => {});
+
+      if (!user) {
+        router.replace('/login');
+      } else if (user.status === 'pending' || !user.status || user.status === 'rejected') {
+        router.replace('/pending');
+      } else if (user.status === 'approved') {
         if (user.role === 'super_admin') {
           router.replace('/super-admin');
         } else if (user.role === 'admin') {
@@ -158,38 +163,36 @@ function RootLayoutNav() {
           router.replace('/(tabs)/academic');
         }
       }
-    }
-  }, [user, effectivelyLoading, fontLoaded, segments]);
+    }, 100);
 
-  useEffect(() => {
-    if (fontLoaded && !effectivelyLoading) {
-      SplashScreen.hideAsync().catch(() => {});
-      setAppIsReady(true);
-    }
-  }, [fontLoaded, effectivelyLoading]);
-
-  if (!appIsReady && !timedOut) {
-    return <AnimatedSplash />;
-  }
+    return () => clearTimeout(t);
+  }, [user, effectivelyLoading, fontLoaded]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="login" options={{ title: 'تسجيل الدخول' }} />
-      <Stack.Screen name="register" options={{ title: 'إنشاء حساب' }} />
-      <Stack.Screen name="pending" options={{ title: 'قيد المراجعة' }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="admin/index" options={{ title: 'لوحة التحكم' }} />
-      <Stack.Screen name="admin/create-course" options={{ title: 'إضافة مقرر' }} />
-      <Stack.Screen name="admin/create-news" options={{ title: 'إضافة خبر' }} />
-      <Stack.Screen name="admin/users" options={{ title: 'إدارة المستخدمين' }} />
-      <Stack.Screen name="admin/quiz-results" options={{ title: 'نتائج الاختبارات' }} />
-      <Stack.Screen name="super-admin/index" options={{ title: 'المشرف العام' }} />
-      <Stack.Screen name="super-admin/manage-roles" options={{ title: 'إدارة الصلاحيات' }} />
-      <Stack.Screen name="super-admin/settings" options={{ title: 'الإعدادات' }} />
-      <Stack.Screen name="course/[id]" options={{ title: 'المقرر' }} />
-      <Stack.Screen name="notifications/index" options={{ title: 'الإشعارات' }} />
-      <Stack.Screen name="+html" options={{ headerShown: false }} />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      {/* الـ Stack دايماً موجود من أول render */}
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" options={{ title: 'تسجيل الدخول' }} />
+        <Stack.Screen name="register" options={{ title: 'إنشاء حساب' }} />
+        <Stack.Screen name="pending" options={{ title: 'قيد المراجعة' }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="admin/index" options={{ title: 'لوحة التحكم' }} />
+        <Stack.Screen name="admin/create-course" options={{ title: 'إضافة مقرر' }} />
+        <Stack.Screen name="admin/create-news" options={{ title: 'إضافة خبر' }} />
+        <Stack.Screen name="admin/users" options={{ title: 'إدارة المستخدمين' }} />
+        <Stack.Screen name="admin/quiz-results" options={{ title: 'نتائج الاختبارات' }} />
+        <Stack.Screen name="super-admin/index" options={{ title: 'المشرف العام' }} />
+        <Stack.Screen name="super-admin/manage-roles" options={{ title: 'إدارة الصلاحيات' }} />
+        <Stack.Screen name="super-admin/settings" options={{ title: 'الإعدادات' }} />
+        <Stack.Screen name="course/[id]" options={{ title: 'المقرر' }} />
+        <Stack.Screen name="notifications/index" options={{ title: 'الإشعارات' }} />
+        <Stack.Screen name="+html" options={{ headerShown: false }} />
+      </Stack>
+
+      {/* الـ Splash طبقة فوق الـ Stack مش بدال منه */}
+      {showSplash && <AnimatedSplash />}
+    </View>
   );
 }
 
@@ -209,11 +212,12 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
+  splashOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#002147',
+    zIndex: 999,
   },
   splashTitle: {
     fontSize: 38,
