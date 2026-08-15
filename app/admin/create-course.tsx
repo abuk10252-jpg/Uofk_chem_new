@@ -16,9 +16,7 @@ export default function CreateCourseScreen() {
   const isArabic = user?.language === 'ar';
 
   const [name, setName] = useState('');
-  const [nameAr, setNameAr] = useState('');
   const [desc, setDesc] = useState('');
-  const [descAr, setDescAr] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleCreate() {
@@ -36,9 +34,9 @@ export default function CreateCourseScreen() {
         method: 'POST',
         body: JSON.stringify({
           name: name.trim(),
-          name_ar: nameAr.trim() || name.trim(),
+          name_ar: name.trim(),
           description: desc.trim(),
-          description_ar: descAr.trim() || desc.trim(),
+          description_ar: desc.trim(),
         }),
       });
 
@@ -71,7 +69,6 @@ export default function CreateCourseScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* هيدر */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={Colors.primary} />
@@ -83,68 +80,35 @@ export default function CreateCourseScreen() {
 
         <View style={styles.card}>
 
-          {/* اسم المادة إنجليزي */}
           <Text style={styles.label}>
-            {isArabic ? 'اسم المادة (إنجليزي) *' : 'Course Name (English) *'}
+            {isArabic ? 'اسم المادة *' : 'Course Name *'}
           </Text>
           <TextInput
             testID="course-name-input"
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="e.g. Thermodynamics"
+            placeholder={isArabic ? 'مثال: الديناميكا الحرارية' : 'e.g. Thermodynamics'}
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
             autoCorrect={false}
           />
 
-          {/* اسم المادة عربي */}
           <Text style={styles.label}>
-            {isArabic ? 'اسم المادة (عربي)' : 'Course Name (Arabic)'}
-          </Text>
-          <TextInput
-            testID="course-name-ar-input"
-            style={[styles.input, { textAlign: 'right' }]}
-            value={nameAr}
-            onChangeText={setNameAr}
-            placeholder="مثال: الديناميكا الحرارية"
-            placeholderTextColor={Colors.textSecondary}
-            editable={!loading}
-          />
-
-          {/* الوصف إنجليزي */}
-          <Text style={styles.label}>
-            {isArabic ? 'الوصف (إنجليزي)' : 'Description (English)'}
+            {isArabic ? 'الوصف' : 'Description'}
           </Text>
           <TextInput
             testID="course-desc-input"
             style={[styles.input, styles.multiline]}
             value={desc}
             onChangeText={setDesc}
-            placeholder="Course description..."
+            placeholder={isArabic ? 'وصف المادة...' : 'Course description...'}
             multiline
             numberOfLines={3}
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
           />
 
-          {/* الوصف عربي */}
-          <Text style={styles.label}>
-            {isArabic ? 'الوصف (عربي)' : 'Description (Arabic)'}
-          </Text>
-          <TextInput
-            testID="course-desc-ar-input"
-            style={[styles.input, styles.multiline, { textAlign: 'right' }]}
-            value={descAr}
-            onChangeText={setDescAr}
-            placeholder="وصف المادة..."
-            multiline
-            numberOfLines={3}
-            placeholderTextColor={Colors.textSecondary}
-            editable={!loading}
-          />
-
-          {/* زر الإنشاء */}
           <TouchableOpacity
             testID="create-course-submit"
             style={[styles.btn, loading && { opacity: 0.7 }]}
