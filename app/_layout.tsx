@@ -121,8 +121,13 @@ function RootLayoutNav() {
     if (!fontLoaded || effectivelyLoading || !minTimeElapsed) return;
 
     if (!user) {
-      router.replace('/login');
-    } else if (user.status === 'pending' || !user.status) {
+      if (segments[0] !== 'login' && segments[0] !== 'register') {
+        router.replace('/login');
+      }
+      return;
+    }
+
+    if (user.status === 'pending' || !user.status) {
       router.replace('/pending');
     } else if (user.status === 'rejected') {
       router.replace('/pending');
