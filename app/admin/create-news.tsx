@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
-  ActivityIndicator, Alert, Image, ActionSheetIOS
+  ActivityIndicator, Alert, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,7 +45,6 @@ export default function CreateNewsScreen() {
   const [uploading, setUploading] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
 
-  // تسجيل صوت
   const recordingRef = useRef<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
@@ -102,8 +101,14 @@ export default function CreateNewsScreen() {
     }
 
     const result = fromCamera
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.8 });
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.All,
+          quality: 0.8,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.All,
+          quality: 0.8,
+        });
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
@@ -172,46 +177,6 @@ export default function CreateNewsScreen() {
     } catch (e) {
       setIsRecording(false);
       Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'فشل إيقاف التسجيل' : 'Failed to stop recording');
-    }
-  }
-
-  function showAttachmentOptions() {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: [
-            isArabic ? 'إلغاء' : 'Cancel',
-            isArabic ? 'كاميرا' : 'Camera',
-            isArabic ? 'معرض الصور/فيديو' : 'Gallery',
-            isArabic ? 'ملف' : 'Document',
-            isRecording ? (isArabic ? 'إيقاف التسجيل' : 'Stop Recording') : (isArabic ? 'تسجيل صوت' : 'Record Voice'),
-          ],
-          cancelButtonIndex: 0,
-        },
-        (index) => {
-          if (index === 1) pickImage(true);
-          else if (index === 2) pickImage(false);
-          else if (index === 3) pickDocument();
-          else if (index === 4) isRecording ? stopRecording() : startRecording();
-        }
-      );
-    } else {
-      Alert.alert(
-        isArabic ? 'اختر مرفق' : 'Choose attachment',
-        undefined,
-        [
-          { text: isArabic ? 'كاميرا' : 'Camera', onPress: () => pickImage(true) },
-          { text: isArabic ? 'معرض' : 'Gallery', onPress: () => pickImage(false) },
-          { text: isArabic ? 'ملف' : 'Document', onPress: pickDocument },
-          {
-            text: isRecording
-              ? (isArabic ? 'إيقاف التسجيل' : 'Stop Recording')
-              : (isArabic ? 'تسجيل صوت' : 'Record Voice'),
-            onPress: () => (isRecording ? stopRecording() : startRecording()),
-          },
-          { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        ]
-      );
     }
   }
 
@@ -384,7 +349,6 @@ export default function CreateNewsScreen() {
           {(['news', 'poll', 'quiz'] as const).map(t => (
             <TouchableOpacity
               key={t}
-              testID={`type-${t}-btn`}
               style={[styles.typeBtn, type === t && styles.typeBtnActive]}
               onPress={() => setType(t)}
             >
@@ -401,35 +365,29 @@ export default function CreateNewsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>
-            {isArabic ? 'العنوان *' : 'Title *'}
-          </Text>
+          <Text style={styles.label}>{isArabic ? 'العنوان *' : 'Title *'}</Text>
           <TextInput
-            testID="news-title-input"
             style={styles.input}
             value={title}
             onChangeText={setTitle}
-            placeholder={isArabic ? 'أدخل العنوان (عربي أو إنجليزي)...' : 'Enter title (Arabic or English)...'}
+            placeholder={isArabic ? 'أدخل العنوان...' : 'Enter title...'}
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
           />
 
-          <Text style={styles.label}>
-            {isArabic ? 'المحتوى' : 'Content'}
-          </Text>
+          <Text style={styles.label}>{isArabic ? 'المحتوى' : 'Content'}</Text>
           <TextInput
-            testID="news-content-input"
             style={[styles.input, styles.multiline]}
             value={content}
             onChangeText={setContent}
-            placeholder={isArabic ? 'اكتب المحتوى (عربي أو إنجليزي)...' : 'Write content (Arabic or English)...'}
+            placeholder={isArabic ? 'اكتب المحتوى...' : 'Write content...'}
             multiline
             numberOfLines={3}
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
           />
 
-          {/* عرض المرفق المختار */}
+          {/* معاينة المرفق */}
           {attachment && (
             <View style={styles.attachmentPreview}>
               {attachment.type === 'image' ? (
@@ -458,13 +416,10 @@ export default function CreateNewsScreen() {
 
           {type === 'poll' && (
             <View>
-              <Text style={styles.label}>
-                {isArabic ? 'خيارات الاستطلاع' : 'Poll Options'}
-              </Text>
+              <Text style={styles.label}>{isArabic ? 'خيارات الاستطلاع' : 'Poll Options'}</Text>
               {pollOptions.map((opt, i) => (
                 <View key={i} style={styles.optionRow}>
                   <TextInput
-                    testID={`poll-option-input-${i}`}
                     style={[styles.input, { flex: 1 }]}
                     value={opt}
                     onChangeText={v => updatePollOption(i, v)}
@@ -473,24 +428,15 @@ export default function CreateNewsScreen() {
                     editable={!loading}
                   />
                   {pollOptions.length > 2 && (
-                    <TouchableOpacity
-                      style={styles.removeOpt}
-                      onPress={() => removePollOption(i)}
-                    >
+                    <TouchableOpacity style={styles.removeOpt} onPress={() => removePollOption(i)}>
                       <Ionicons name="close-circle" size={22} color={Colors.error} />
                     </TouchableOpacity>
                   )}
                 </View>
               ))}
-              <TouchableOpacity
-                testID="add-poll-option-btn"
-                style={styles.addOptBtn}
-                onPress={addPollOption}
-              >
+              <TouchableOpacity style={styles.addOptBtn} onPress={addPollOption}>
                 <Ionicons name="add" size={18} color={Colors.accent} />
-                <Text style={styles.addOptText}>
-                  {isArabic ? 'إضافة خيار' : 'Add Option'}
-                </Text>
+                <Text style={styles.addOptText}>{isArabic ? 'إضافة خيار' : 'Add Option'}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -498,11 +444,8 @@ export default function CreateNewsScreen() {
           {type === 'quiz' && (
             <View>
               <View style={styles.timeLimitRow}>
-                <Text style={styles.label}>
-                  {isArabic ? 'وقت الاختبار (دقيقة)' : 'Time Limit (minutes)'}
-                </Text>
+                <Text style={styles.label}>{isArabic ? 'وقت الاختبار (دقيقة)' : 'Time Limit (minutes)'}</Text>
                 <TextInput
-                  testID="quiz-time-input"
                   style={[styles.input, styles.timeLimitInput]}
                   value={timeLimit}
                   onChangeText={setTimeLimit}
@@ -515,9 +458,7 @@ export default function CreateNewsScreen() {
               {quizQuestions.map((q, qi) => (
                 <View key={qi} style={styles.questionCard}>
                   <View style={styles.qHeader}>
-                    <Text style={styles.qLabel}>
-                      {isArabic ? `السؤال ${qi + 1}` : `Question ${qi + 1}`}
-                    </Text>
+                    <Text style={styles.qLabel}>{isArabic ? `السؤال ${qi + 1}` : `Question ${qi + 1}`}</Text>
                     {quizQuestions.length > 1 && (
                       <TouchableOpacity onPress={() => removeQuestion(qi)}>
                         <Ionicons name="trash-outline" size={18} color={Colors.error} />
@@ -526,7 +467,6 @@ export default function CreateNewsScreen() {
                   </View>
 
                   <TextInput
-                    testID={`quiz-q-${qi}`}
                     style={styles.input}
                     value={q.question}
                     onChangeText={v => updateQuestion(qi, 'question', v)}
@@ -536,27 +476,18 @@ export default function CreateNewsScreen() {
                   />
 
                   <Text style={styles.correctHint}>
-                    {isArabic
-                      ? 'اضغط على الدائرة لتحديد الإجابة الصحيحة'
-                      : 'Tap the circle to mark correct answer'}
+                    {isArabic ? 'اضغط على الدائرة لتحديد الإجابة الصحيحة' : 'Tap the circle to mark correct answer'}
                   </Text>
 
                   {q.options.map((opt, oi) => (
                     <View key={oi} style={styles.quizOptRow}>
                       <TouchableOpacity
-                        testID={`quiz-correct-\( {qi}- \){oi}`}
-                        style={[
-                          styles.radioBtn,
-                          q.correct_answer === oi && styles.radioBtnActive,
-                        ]}
+                        style={[styles.radioBtn, q.correct_answer === oi && styles.radioBtnActive]}
                         onPress={() => updateQuestion(qi, 'correct_answer', oi)}
                       >
-                        {q.correct_answer === oi && (
-                          <View style={styles.radioInner} />
-                        )}
+                        {q.correct_answer === oi && <View style={styles.radioInner} />}
                       </TouchableOpacity>
                       <TextInput
-                        testID={`quiz-opt-\( {qi}- \){oi}`}
                         style={[styles.input, { flex: 1 }]}
                         value={opt}
                         onChangeText={v => updateQuizOption(qi, oi, v)}
@@ -569,15 +500,9 @@ export default function CreateNewsScreen() {
                 </View>
               ))}
 
-              <TouchableOpacity
-                testID="add-question-btn"
-                style={styles.addOptBtn}
-                onPress={addQuestion}
-              >
+              <TouchableOpacity style={styles.addOptBtn} onPress={addQuestion}>
                 <Ionicons name="add" size={18} color={Colors.accent} />
-                <Text style={styles.addOptText}>
-                  {isArabic ? 'إضافة سؤال' : 'Add Question'}
-                </Text>
+                <Text style={styles.addOptText}>{isArabic ? 'إضافة سؤال' : 'Add Question'}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -681,7 +606,6 @@ const styles = StyleSheet.create({
   submitDisabled: { opacity: 0.6 },
   submitText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
 
-  // المرفقات
   attachmentPreview: {
     marginTop: 12, borderRadius: 12, overflow: 'hidden', position: 'relative',
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
@@ -693,7 +617,6 @@ const styles = StyleSheet.create({
   fileName: { flex: 1, color: Colors.text, fontSize: 14 },
   removeAttachment: { position: 'absolute', top: 8, right: 8 },
 
-  // شريط المرفقات
   attachBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center', gap: 10,
