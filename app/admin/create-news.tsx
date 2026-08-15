@@ -1,19 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
-  ActivityIndicator, Alert
+  ActivityIndicator, Alert, Image, ActionSheetIOS
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { apiCall } from '../../src/utils/api';
+import { getFirebaseStorage } from '../../src/firebase';
 
 interface QuizQ {
   question: string;
   options: string[];
   correct_answer: number;
+}
+
+interface Attachment {
+  uri: string;
+  name: string;
+  type: 'image' | 'video' | 'audio' | 'file';
+  mimeType?: string;
 }
 
 export default function CreateNewsScreen() {
@@ -30,6 +42,12 @@ export default function CreateNewsScreen() {
   ]);
   const [timeLimit, setTimeLimit] = useState('10');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+
+  // تسجيل صوت
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   function addPollOption() {
     setPollOptions(prev => [...prev, '']);
@@ -72,6 +90,155 @@ export default function CreateNewsScreen() {
     );
   }
 
+  // ========== المرفقات ==========
+  async function pickImage(fromCamera = false) {
+    const permission = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'محتاج إذن الكاميرا/المعرض' : 'Permission required');
+      return;
+    }
+
+    const result = fromCamera
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.8 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.8 });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      const isVideo = asset.type === 'video';
+      setAttachment({
+        uri: asset.uri,
+        name: asset.fileName || `media_\( {Date.now()}. \){isVideo ? 'mp4' : 'jpg'}`,
+        type: isVideo ? 'video' : 'image',
+        mimeType: asset.mimeType,
+      });
+    }
+  }
+
+  async function pickDocument() {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: '*/*',
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setAttachment({
+        uri: asset.uri,
+        name: asset.name,
+        type: 'file',
+        mimeType: asset.mimeType || 'application/octet-stream',
+      });
+    }
+  }
+
+  async function startRecording() {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'محتاج إذن الميكروفون' : 'Microphone permission required');
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch (e) {
+      Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'فشل بدء التسجيل' : 'Failed to start recording');
+    }
+  }
+
+  async function stopRecording() {
+    if (!recordingRef.current) return;
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      setIsRecording(false);
+      if (uri) {
+        setAttachment({
+          uri,
+          name: `voice_${Date.now()}.m4a`,
+          type: 'audio',
+          mimeType: 'audio/m4a',
+        });
+      }
+    } catch (e) {
+      setIsRecording(false);
+      Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'فشل إيقاف التسجيل' : 'Failed to stop recording');
+    }
+  }
+
+  function showAttachmentOptions() {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: [
+            isArabic ? 'إلغاء' : 'Cancel',
+            isArabic ? 'كاميرا' : 'Camera',
+            isArabic ? 'معرض الصور/فيديو' : 'Gallery',
+            isArabic ? 'ملف' : 'Document',
+            isRecording ? (isArabic ? 'إيقاف التسجيل' : 'Stop Recording') : (isArabic ? 'تسجيل صوت' : 'Record Voice'),
+          ],
+          cancelButtonIndex: 0,
+        },
+        (index) => {
+          if (index === 1) pickImage(true);
+          else if (index === 2) pickImage(false);
+          else if (index === 3) pickDocument();
+          else if (index === 4) isRecording ? stopRecording() : startRecording();
+        }
+      );
+    } else {
+      Alert.alert(
+        isArabic ? 'اختر مرفق' : 'Choose attachment',
+        undefined,
+        [
+          { text: isArabic ? 'كاميرا' : 'Camera', onPress: () => pickImage(true) },
+          { text: isArabic ? 'معرض' : 'Gallery', onPress: () => pickImage(false) },
+          { text: isArabic ? 'ملف' : 'Document', onPress: pickDocument },
+          {
+            text: isRecording
+              ? (isArabic ? 'إيقاف التسجيل' : 'Stop Recording')
+              : (isArabic ? 'تسجيل صوت' : 'Record Voice'),
+            onPress: () => (isRecording ? stopRecording() : startRecording()),
+          },
+          { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  }
+
+  async function uploadAttachment(): Promise<string | null> {
+    if (!attachment) return null;
+    setUploading(true);
+    try {
+      const storage = getFirebaseStorage();
+      const response = await fetch(attachment.uri);
+      const blob = await response.blob();
+      const path = `news_attachments/\( {Date.now()}_ \){attachment.name}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, blob, {
+        contentType: attachment.mimeType || 'application/octet-stream',
+      });
+      const url = await getDownloadURL(storageRef);
+      return url;
+    } catch (e: any) {
+      console.warn('Upload failed:', e);
+      Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'فشل رفع المرفق' : 'Failed to upload attachment');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // ========== إنشاء الخبر ==========
   async function handleCreate() {
     if (!title.trim()) {
       Alert.alert(
@@ -117,12 +284,23 @@ export default function CreateNewsScreen() {
 
     setLoading(true);
     try {
+      let imageUrl = '';
+      if (attachment) {
+        const uploaded = await uploadAttachment();
+        if (!uploaded) {
+          setLoading(false);
+          return;
+        }
+        imageUrl = uploaded;
+      }
+
       const body: any = {
         type,
         title: title.trim(),
         title_ar: title.trim(),
         content: content.trim(),
         content_ar: content.trim(),
+        image: imageUrl,
       };
 
       if (type === 'poll') {
@@ -223,7 +401,6 @@ export default function CreateNewsScreen() {
         </View>
 
         <View style={styles.card}>
-
           <Text style={styles.label}>
             {isArabic ? 'العنوان *' : 'Title *'}
           </Text>
@@ -251,6 +428,33 @@ export default function CreateNewsScreen() {
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
           />
+
+          {/* عرض المرفق المختار */}
+          {attachment && (
+            <View style={styles.attachmentPreview}>
+              {attachment.type === 'image' ? (
+                <Image source={{ uri: attachment.uri }} style={styles.previewImage} />
+              ) : (
+                <View style={styles.filePreview}>
+                  <Ionicons
+                    name={
+                      attachment.type === 'video' ? 'videocam' :
+                      attachment.type === 'audio' ? 'mic' : 'document'
+                    }
+                    size={28}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.fileName} numberOfLines={1}>{attachment.name}</Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.removeAttachment}
+                onPress={() => setAttachment(null)}
+              >
+                <Ionicons name="close-circle" size={24} color={Colors.error} />
+              </TouchableOpacity>
+            </View>
+          )}
 
           {type === 'poll' && (
             <View>
@@ -340,7 +544,7 @@ export default function CreateNewsScreen() {
                   {q.options.map((opt, oi) => (
                     <View key={oi} style={styles.quizOptRow}>
                       <TouchableOpacity
-                        testID={`quiz-correct-${qi}-${oi}`}
+                        testID={`quiz-correct-\( {qi}- \){oi}`}
                         style={[
                           styles.radioBtn,
                           q.correct_answer === oi && styles.radioBtnActive,
@@ -352,7 +556,7 @@ export default function CreateNewsScreen() {
                         )}
                       </TouchableOpacity>
                       <TextInput
-                        testID={`quiz-opt-${qi}-${oi}`}
+                        testID={`quiz-opt-\( {qi}- \){oi}`}
                         style={[styles.input, { flex: 1 }]}
                         value={opt}
                         onChangeText={v => updateQuizOption(qi, oi, v)}
@@ -377,109 +581,136 @@ export default function CreateNewsScreen() {
               </TouchableOpacity>
             </View>
           )}
-
-          <TouchableOpacity
-            testID="create-news-submit"
-            style={[styles.btn, loading && { opacity: 0.7 }]}
-            onPress={handleCreate}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <>
-                <Ionicons name="send" size={18} color="#FFF" />
-                <Text style={styles.btnText}>{getSubmitLabel()}</Text>
-              </>
-            )}
-          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={[styles.submitBtn, (loading || uploading) && styles.submitDisabled]}
+          onPress={handleCreate}
+          disabled={loading || uploading}
+        >
+          {(loading || uploading) ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.submitText}>{getSubmitLabel()}</Text>
+          )}
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* شريط المرفقات زي الواتساب */}
+      <View style={styles.attachBar}>
+        <TouchableOpacity style={styles.attachBtn} onPress={() => pickImage(true)}>
+          <Ionicons name="camera" size={24} color="#FFF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.attachBtnSecondary} onPress={() => pickImage(false)}>
+          <Ionicons name="image" size={22} color={Colors.textSecondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.attachBtnSecondary} onPress={pickDocument}>
+          <Ionicons name="attach" size={22} color={Colors.textSecondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.attachBtnSecondary, isRecording && styles.recordingBtn]}
+          onPress={isRecording ? stopRecording : startRecording}
+        >
+          <Ionicons
+            name={isRecording ? 'stop-circle' : 'mic'}
+            size={22}
+            color={isRecording ? '#FFF' : Colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        {attachment && (
+          <Text style={styles.attachHint} numberOfLines={1}>
+            {attachment.name}
+          </Text>
+        )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scroll: { padding: 16, paddingBottom: 40 },
+  scroll: { padding: 16, paddingBottom: 100 },
   typeRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   typeBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 5, paddingVertical: 12,
-    borderRadius: 12, backgroundColor: '#FFF',
-    borderWidth: 1, borderColor: Colors.border,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.card,
   },
-  typeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  typeText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
+  typeBtnActive: { backgroundColor: Colors.primary },
+  typeText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
   typeTextActive: { color: '#FFF' },
   card: {
-    backgroundColor: '#FFF', borderRadius: 20, padding: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04, shadowRadius: 12, elevation: 3,
+    backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16,
   },
   label: {
-    fontSize: 14, fontWeight: '600',
-    color: Colors.textPrimary, marginBottom: 6, marginTop: 14,
+    fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6, marginTop: 10,
   },
   input: {
-    backgroundColor: Colors.background, borderWidth: 1,
-    borderColor: Colors.border, borderRadius: 12,
-    padding: 14, fontSize: 15, color: Colors.textPrimary,
+    backgroundColor: Colors.background, borderRadius: 10, paddingHorizontal: 14,
+    paddingVertical: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.border,
   },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
-  optionRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 8, marginBottom: 8,
-  },
+  multiline: { minHeight: 90, textAlignVertical: 'top' },
+  optionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   removeOpt: { padding: 4 },
   addOptBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 4,
-    paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: Colors.accent,
-    borderStyle: 'dashed', marginTop: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingVertical: 8,
   },
-  addOptText: { fontSize: 14, fontWeight: '600', color: Colors.accent },
-  timeLimitRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginTop: 8,
-  },
-  timeLimitInput: {
-    width: 80, textAlign: 'center',
-  },
+  addOptText: { color: Colors.accent, fontWeight: '600', fontSize: 14 },
+  timeLimitRow: { marginBottom: 8 },
+  timeLimitInput: { width: 80 },
   questionCard: {
-    backgroundColor: Colors.background, borderRadius: 14,
-    padding: 14, marginBottom: 12, marginTop: 8,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.background, borderRadius: 12, padding: 12, marginTop: 12,
   },
-  qHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 10,
-  },
-  qLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  quizOptRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 10, marginBottom: 8,
-  },
+  qHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  qLabel: { fontWeight: '700', color: Colors.text, fontSize: 14 },
+  correctHint: { fontSize: 12, color: Colors.textSecondary, marginVertical: 6 },
+  quizOptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   radioBtn: {
-    width: 22, height: 22, borderRadius: 11,
-    borderWidth: 2, borderColor: Colors.border,
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+    borderColor: Colors.border, alignItems: 'center', justifyContent: 'center',
+  },
+  radioBtnActive: { borderColor: Colors.primary },
+  radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.primary },
+  submitBtn: {
+    backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 16,
+    alignItems: 'center', marginTop: 8,
+  },
+  submitDisabled: { opacity: 0.6 },
+  submitText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+
+  // المرفقات
+  attachmentPreview: {
+    marginTop: 12, borderRadius: 12, overflow: 'hidden', position: 'relative',
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+  },
+  previewImage: { width: '100%', height: 180, resizeMode: 'cover' },
+  filePreview: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14,
+  },
+  fileName: { flex: 1, color: Colors.text, fontSize: 14 },
+  removeAttachment: { position: 'absolute', top: 8, right: 8 },
+
+  // شريط المرفقات
+  attachBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Colors.card, paddingHorizontal: 14, paddingVertical: 12,
+    borderTopWidth: 1, borderTopColor: Colors.border,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+  },
+  attachBtn: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  radioBtnActive: { borderColor: Colors.accent },
-  radioInner: {
-    width: 12, height: 12, borderRadius: 6,
-    backgroundColor: Colors.accent,
+  attachBtnSecondary: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.background,
+    alignItems: 'center', justifyContent: 'center',
   },
-  correctHint: {
-    fontSize: 12, color: Colors.textSecondary,
-    marginBottom: 8, fontStyle: 'italic',
+  recordingBtn: { backgroundColor: Colors.error },
+  attachHint: {
+    flex: 1, fontSize: 12, color: Colors.textSecondary, marginLeft: 4,
   },
-  btn: {
-    backgroundColor: Colors.primary, borderRadius: 14,
-    paddingVertical: 16, marginTop: 24,
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8,
-  },
-  btnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });
