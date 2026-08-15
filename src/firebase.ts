@@ -49,3 +49,10 @@ export function getFirebaseStorage(): FirebaseStorage {
   _storage = getStorage(getFirebaseApp());
   return _storage;
 }
+let _storage: FirebaseStorage | null = null;
+
+export function getFirebaseStorage(): FirebaseStorage {
+  if (_storage) return _storage;
+  _storage = getStorage(getFirebaseApp());
+  return _storage;
+}
