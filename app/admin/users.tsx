@@ -40,19 +40,11 @@ export default function AdminUsersScreen() {
   async function fetchUsers() {
     try {
       const data = await apiCall('/admin/users');
-      if (data?.users) {
-        setUsers(data.users);
-      } else {
-        setUsers([]);
-        Alert.alert(
-          isArabic ? 'خطأ' : 'Error',
-          isArabic ? 'فشل تحميل المستخدمين' : 'Failed to load users'
-        );
-      }
-    } catch (e) {
+      setUsers(data?.users || []);
+    } catch (e: any) {
       Alert.alert(
         isArabic ? 'خطأ' : 'Error',
-        isArabic ? 'تحقق من الإنترنت' : 'Check your connection'
+        e?.message || (isArabic ? 'فشل تحميل المستخدمين' : 'Failed to load users')
       );
     } finally {
       setLoading(false);
@@ -76,10 +68,10 @@ export default function AdminUsersScreen() {
                 prev.map(u => u.id === userId ? { ...u, status: 'approved' } : u)
               );
               Alert.alert('✅', isArabic ? 'تم القبول' : 'User approved');
-            } catch {
+            } catch (e: any) {
               Alert.alert(
                 isArabic ? 'خطأ' : 'Error',
-                isArabic ? 'فشل القبول' : 'Failed to approve'
+                e?.message || (isArabic ? 'فشل القبول' : 'Failed to approve')
               );
             } finally {
               setActionLoading(null);
@@ -107,10 +99,10 @@ export default function AdminUsersScreen() {
                 prev.map(u => u.id === userId ? { ...u, status: 'rejected' } : u)
               );
               Alert.alert('✅', isArabic ? 'تم الرفض' : 'User rejected');
-            } catch {
+            } catch (e: any) {
               Alert.alert(
                 isArabic ? 'خطأ' : 'Error',
-                isArabic ? 'فشل الرفض' : 'Failed to reject'
+                e?.message || (isArabic ? 'فشل الرفض' : 'Failed to reject')
               );
             } finally {
               setActionLoading(null);
@@ -142,15 +134,9 @@ export default function AdminUsersScreen() {
     return isArabic ? 'طالب' : 'Student';
   }
 
-  // فلترة + بحث
   const filtered = users.filter(u => {
-    // إخفاء السوبر أدمن من قائمة الأدمن العادي
     if (!isSuperAdmin && u.role === 'super_admin') return false;
-
-    // فلتر الحالة
     if (filter !== 'all' && u.status !== filter) return false;
-
-    // البحث
     if (search.trim()) {
       const q = search.toLowerCase();
       return (
@@ -159,7 +145,6 @@ export default function AdminUsersScreen() {
         u.university_id?.toLowerCase().includes(q)
       );
     }
-
     return true;
   });
 
@@ -173,8 +158,6 @@ export default function AdminUsersScreen() {
 
     return (
       <View style={styles.userCard}>
-
-        {/* هيدر البطاقة */}
         <View style={styles.userHeader}>
           <View style={[styles.userAvatar, { backgroundColor: Colors.primary }]}>
             <Text style={styles.avatarText}>
@@ -207,7 +190,6 @@ export default function AdminUsersScreen() {
           </View>
         </View>
 
-        {/* الدور */}
         <View style={styles.roleLine}>
           <Ionicons
             name={item.role === 'super_admin' ? 'star' : item.role === 'admin' ? 'shield' : 'school'}
@@ -220,7 +202,6 @@ export default function AdminUsersScreen() {
           </Text>
         </View>
 
-        {/* أزرار الإجراءات */}
         {!isSelf && (
           <View style={styles.actions}>
             {isLoading ? (
@@ -275,7 +256,6 @@ export default function AdminUsersScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* تغيير الدور للسوبر أدمن فقط */}
                 {isSuperAdmin && item.role !== 'super_admin' && (
                   <TouchableOpacity
                     style={[styles.actionBtn, { backgroundColor: Colors.primary }]}
@@ -305,8 +285,6 @@ export default function AdminUsersScreen() {
 
   return (
     <View style={styles.container}>
-
-      {/* البحث */}
       <View style={styles.searchWrap}>
         <Ionicons name="search-outline" size={18} color={Colors.textSecondary} />
         <TextInput
@@ -323,7 +301,6 @@ export default function AdminUsersScreen() {
         )}
       </View>
 
-      {/* الفلاتر */}
       <View style={styles.filterRow}>
         {[
           { key: 'all', label: isArabic ? `الكل (${users.length})` : `All (${users.length})` },
@@ -370,10 +347,7 @@ export default function AdminUsersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  center: {
-    flex: 1, justifyContent: 'center',
-    alignItems: 'center', backgroundColor: Colors.background,
-  },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF', margin: 12, marginBottom: 0,
@@ -382,57 +356,39 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: Colors.textPrimary },
   filterRow: {
-    flexDirection: 'row', padding: 12,
-    gap: 8, backgroundColor: '#FFF',
+    flexDirection: 'row', padding: 12, gap: 8, backgroundColor: '#FFF',
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  filterBtn: {
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: Colors.background,
-  },
+  filterBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: Colors.background },
   filterActive: { backgroundColor: Colors.primary },
   filterText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
   filterTextActive: { color: '#FFF' },
   listContent: { padding: 16, paddingBottom: 32 },
   userCard: {
-    backgroundColor: '#FFF', borderRadius: 16,
-    padding: 16, marginBottom: 12,
+    backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 12,
     borderWidth: 1, borderColor: 'rgba(0,33,71,0.05)',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03, shadowRadius: 8, elevation: 2,
   },
-  userHeader: {
-    flexDirection: 'row', alignItems: 'center', marginBottom: 10,
-  },
-  userAvatar: {
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: 'center', justifyContent: 'center', marginRight: 12,
-  },
+  userHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  userAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   avatarText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   userInfo: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   userName: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, flex: 1 },
   youBadge: {
     fontSize: 10, fontWeight: '700', color: Colors.accent,
-    backgroundColor: Colors.accent + '20',
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    backgroundColor: Colors.accent + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
   },
   userEmail: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
   userId: { fontSize: 12, color: Colors.textSecondary },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusText: { fontSize: 11, fontWeight: '700' },
-  roleLine: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 4, marginBottom: 10,
-  },
+  roleLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 },
   roleLabel: { fontSize: 13, color: Colors.textSecondary },
   roleValue: { fontWeight: '700', color: Colors.primary },
   actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  actionBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 10, gap: 4,
-  },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, gap: 4 },
   actionText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
   emptyWrap: { alignItems: 'center', marginTop: 60, gap: 12 },
   emptyText: { fontSize: 15, color: Colors.textSecondary },
