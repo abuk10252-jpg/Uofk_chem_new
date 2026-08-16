@@ -46,13 +46,11 @@ export default function CreateCourseScreen() {
           isArabic ? 'تم إنشاء المادة بنجاح!' : 'Course created successfully!',
           [{ text: isArabic ? 'حسناً' : 'OK', onPress: () => router.back() }]
         );
-      } else {
-        throw new Error('Failed to create course');
       }
     } catch (e: any) {
       Alert.alert(
         isArabic ? 'خطأ' : 'Error',
-        e.message || (isArabic ? 'فشل إنشاء المادة' : 'Failed to create course')
+        e?.message || (isArabic ? 'فشل إنشاء المادة' : 'Failed to create course')
       );
     } finally {
       setLoading(false);
@@ -135,28 +133,19 @@ export default function CreateCourseScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { padding: 16, paddingBottom: 40 },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 12, marginBottom: 16,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   backBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: '#FFF', alignItems: 'center',
-    justifyContent: 'center', borderWidth: 1,
-    borderColor: Colors.border,
+    justifyContent: 'center', borderWidth: 1, borderColor: Colors.border,
   },
-  headerTitle: {
-    fontSize: 20, fontWeight: '700', color: Colors.textPrimary,
-  },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: Colors.textPrimary },
   card: {
     backgroundColor: '#FFF', borderRadius: 20, padding: 20,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04, shadowRadius: 12, elevation: 3,
   },
-  label: {
-    fontSize: 14, fontWeight: '600',
-    color: Colors.textPrimary, marginBottom: 6, marginTop: 14,
-  },
+  label: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 6, marginTop: 14 },
   input: {
     backgroundColor: Colors.background, borderWidth: 1,
     borderColor: Colors.border, borderRadius: 12,
@@ -164,10 +153,8 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   btn: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: 12,
-    paddingVertical: 16, marginTop: 24,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 16, marginTop: 24,
   },
   btnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });
