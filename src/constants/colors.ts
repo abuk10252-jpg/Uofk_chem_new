@@ -21,6 +21,9 @@ export const Colors = {
   warning: '#F59E0B',
   info: '#3B82F6',
 
+  card: '#FFFFFF',
+  text: '#0A0A0A',
+
   // ألوان إضافية للتطبيق
   overlay: 'rgba(0,0,0,0.5)',
   primaryLight: 'rgba(0,33,71,0.1)',
