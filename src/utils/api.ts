@@ -13,9 +13,6 @@ if (!BASE_URL) {
   console.warn("⚠️ WARNING: API_URL is missing");
 }
 
-/**
- * الحصول على توكن صالح
- */
 async function getFreshToken(): Promise<string | null> {
   try {
     const auth = getFirebaseAuth();
@@ -27,7 +24,6 @@ async function getFreshToken(): Promise<string | null> {
   } catch (e) {
     console.warn("Firebase getIdToken failed, falling back to stored token:", e);
   }
-
   try {
     return await AsyncStorage.getItem("token");
   } catch (e) {
@@ -36,75 +32,68 @@ async function getFreshToken(): Promise<string | null> {
   }
 }
 
-/**
- * دالة عامة لجميع API calls
- */
 export async function apiCall(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
+  const netInfo = await NetInfo.fetch();
+  if (!netInfo.isConnected || !netInfo.isInternetReachable) {
+    throw new Error('لا يوجد اتصال بالإنترنت');
+  }
+
+  const token = await getFreshToken();
+  if (!token) {
+    throw new Error('تعذر الحصول على جلسة تسجيل الدخول - سجل خروج وادخل تاني');
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (options.headers) {
+    const optHeaders = options.headers as Record<string, string>;
+    Object.keys(optHeaders).forEach(key => {
+      headers[key] = optHeaders[key];
+    });
+  }
+
+  headers["Authorization"] = `Bearer ${token}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+  let response: Response;
   try {
-    const netInfo = await NetInfo.fetch();
-    if (!netInfo.isConnected || !netInfo.isInternetReachable) {
-      console.warn("No internet connection");
-      return { offline: true };
-    }
-
-    const token = await getFreshToken();
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (options.headers) {
-      const optHeaders = options.headers as Record<string, string>;
-      Object.keys(optHeaders).forEach(key => {
-        headers[key] = optHeaders[key];
-      });
-    }
-
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, 15000);
-
-    let response: Response;
-
-    try {
-      response = await fetch(`\( {BASE_URL} \){endpoint}`, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId);
-      if (fetchError?.name === 'AbortError') {
-        console.warn(`Request timeout on ${endpoint}`);
-        return { timeout: true };
-      }
-      throw fetchError;
-    }
-
+    response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (fetchError: any) {
     clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      console.warn(`API Error ${response.status} on ${endpoint}:`, text);
-      return null;
+    if (fetchError?.name === 'AbortError') {
+      throw new Error('انتهت مهلة الاتصال - جرب تاني (ممكن السيرفر كان نايم، استنى شوية وحاول تاني)');
     }
+    throw new Error(`فشل الاتصال بالسيرفر: ${fetchError?.message || fetchError}`);
+  }
+  clearTimeout(timeoutId);
 
+  const text = await response.text().catch(() => "");
+
+  if (!response.ok) {
+    console.warn(`API Error ${response.status} on ${endpoint}:`, text);
+    let serverMsg = text;
     try {
-      return await response.json();
-    } catch {
-      return null;
-    }
+      const parsed = JSON.parse(text);
+      serverMsg = parsed.error || parsed.message || text;
+    } catch {}
+    throw new Error(`[${response.status}] ${serverMsg || 'Request failed'}`);
+  }
 
-  } catch (error: any) {
-    console.warn(`API Call Error on ${endpoint}:`, error?.message || error);
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
     return null;
   }
 }
@@ -135,49 +124,52 @@ export async function uploadFile(
   endpoint: string,
   formData: FormData
 ): Promise<any> {
+  const netInfo = await NetInfo.fetch();
+  if (!netInfo.isConnected || !netInfo.isInternetReachable) {
+    throw new Error('لا يوجد اتصال بالإنترنت');
+  }
+
+  const token = await getFreshToken();
+  if (!token) {
+    throw new Error('تعذر الحصول على جلسة تسجيل الدخول - سجل خروج وادخل تاني');
+  }
+
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  let response: Response;
   try {
-    const netInfo = await NetInfo.fetch();
-    if (!netInfo.isConnected || !netInfo.isInternetReachable) {
-      return { offline: true };
-    }
-
-    const token = await getFreshToken();
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, 60000);
-
-    let response: Response;
-
-    try {
-      response = await fetch(`\( {BASE_URL} \){endpoint}`, {
-        method: 'POST',
-        headers,
-        body: formData,
-        signal: controller.signal,
-      });
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId);
-      if (fetchError?.name === 'AbortError') {
-        throw new Error('Upload timeout - الملف كبير جداً أو الإنترنت بطيء');
-      }
-      throw fetchError;
-    }
-
+    response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (fetchError: any) {
     clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || `Upload failed with status ${response.status}`);
+    if (fetchError?.name === 'AbortError') {
+      throw new Error('انتهت مهلة الرفع - الملف كبير جداً أو الإنترنت بطيء');
     }
+    throw new Error(`فشل الاتصال بالسيرفر: ${fetchError?.message || fetchError}`);
+  }
+  clearTimeout(timeoutId);
 
-    return await response.json();
+  const text = await response.text().catch(() => "");
 
-  } catch (error: any) {
-    console.warn(`Upload Error on ${endpoint}:`, error?.message || error);
-    throw error;
+  if (!response.ok) {
+    let serverMsg = text;
+    try {
+      const parsed = JSON.parse(text);
+      serverMsg = parsed.error || parsed.message || text;
+    } catch {}
+    throw new Error(`[${response.status}] ${serverMsg || 'Upload failed'}`);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
   }
 }
