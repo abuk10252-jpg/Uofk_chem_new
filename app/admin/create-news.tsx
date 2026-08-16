@@ -115,7 +115,7 @@ export default function CreateNewsScreen() {
       const isVideo = asset.type === 'video';
       setAttachment({
         uri: asset.uri,
-        name: asset.fileName || `media_\( {Date.now()}. \){isVideo ? 'mp4' : 'jpg'}`,
+        name: asset.fileName || `media_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`,
         type: isVideo ? 'video' : 'image',
         mimeType: asset.mimeType,
       });
@@ -187,7 +187,7 @@ export default function CreateNewsScreen() {
       const storage = getFirebaseStorage();
       const response = await fetch(attachment.uri);
       const blob = await response.blob();
-      const path = `news_attachments/\( {Date.now()}_ \){attachment.name}`;
+      const path = `news_attachments/${Date.now()}_${attachment.name}`;
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, blob, {
         contentType: attachment.mimeType || 'application/octet-stream',
@@ -387,7 +387,6 @@ export default function CreateNewsScreen() {
             editable={!loading}
           />
 
-          {/* معاينة المرفق */}
           {attachment && (
             <View style={styles.attachmentPreview}>
               {attachment.type === 'image' ? (
@@ -521,7 +520,6 @@ export default function CreateNewsScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* شريط المرفقات زي الواتساب */}
       <View style={styles.attachBar}>
         <TouchableOpacity style={styles.attachBtn} onPress={() => pickImage(true)}>
           <Ionicons name="camera" size={24} color="#FFF" />
