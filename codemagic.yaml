@@ -4,7 +4,7 @@ workflows:
     name: UOFK Chem Android Build
     environment:
       vars:
-        EXPO_TOKEN: hJr5aBsOchGLpKQKvOUf0PNRZOzflu1A14Amc_g5
+        EXPO_TOKEN: NgU1q-iDP3X7Vse0p0AVsiVNNeJ8op3QuyHcYz66
       node: 20.19.2
     triggering:
       events:
