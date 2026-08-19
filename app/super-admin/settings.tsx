@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
+import { confirmAction } from '../../src/utils/confirmAction';
 
 export default function SuperAdminSettings() {
   const { user, logout } = useAuth();
@@ -14,25 +15,21 @@ export default function SuperAdminSettings() {
   const isArabic = user?.language === 'ar';
 
   async function handleLogout() {
-    Alert.alert(
-      isArabic ? 'تسجيل الخروج' : 'Logout',
-      isArabic ? 'هل تريد تسجيل الخروج؟' : 'Are you sure you want to logout?',
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'خروج' : 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout();
-              router.replace('/login');
-            } catch {
-              router.replace('/login');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: isArabic ? 'تسجيل الخروج' : 'Logout',
+      message: isArabic ? 'هل تريد تسجيل الخروج؟' : 'Are you sure you want to logout?',
+      confirmText: isArabic ? 'خروج' : 'Logout',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await logout();
+          router.replace('/login');
+        } catch {
+          router.replace('/login');
+        }
+      },
+    });
   }
 
   return (
