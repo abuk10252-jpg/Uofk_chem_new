@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiCall } from '../../src/utils/api';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
+import { confirmAction } from '../../src/utils/confirmAction';
 
 export default function ManageRoles() {
   const { user } = useAuth();
@@ -79,43 +80,39 @@ export default function ManageRoles() {
         ? 'Admin'
         : isArabic ? 'طالب' : 'Student';
 
-    Alert.alert(
-      isArabic ? 'تأكيد' : 'Confirm',
-      isArabic
+    confirmAction({
+      title: isArabic ? 'تأكيد' : 'Confirm',
+      message: isArabic
         ? `هل تريد تغيير دور "${userName}" إلى ${roleLabel}؟`
         : `Change "${userName}" role to ${roleLabel}?`,
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'تأكيد' : 'Confirm',
-          onPress: async () => {
-            setUpdating(uid);
-            try {
-              const data = await apiCall(`/admin/set-role/${uid}`, {
-                method: 'POST',
-                body: JSON.stringify({ role }),
-              });
-              if (data) {
-                Alert.alert(
-                  '✅',
-                  isArabic
-                    ? `تم تغيير الدور إلى ${roleLabel}`
-                    : `Role updated to ${roleLabel}`
-                );
-                loadUsers();
-              }
-            } catch (e: any) {
-              Alert.alert(
-                isArabic ? 'خطأ' : 'Error',
-                isArabic ? 'فشل تغيير الدور' : 'Failed to update role'
-              );
-            } finally {
-              setUpdating(null);
-            }
-          },
-        },
-      ]
-    );
+      confirmText: isArabic ? 'تأكيد' : 'Confirm',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      onConfirm: async () => {
+        setUpdating(uid);
+        try {
+          const data = await apiCall(`/admin/set-role/${uid}`, {
+            method: 'POST',
+            body: JSON.stringify({ role }),
+          });
+          if (data) {
+            Alert.alert(
+              '✅',
+              isArabic
+                ? `تم تغيير الدور إلى ${roleLabel}`
+                : `Role updated to ${roleLabel}`
+            );
+            loadUsers();
+          }
+        } catch (e: any) {
+          Alert.alert(
+            isArabic ? 'خطأ' : 'Error',
+            isArabic ? 'فشل تغيير الدور' : 'Failed to update role'
+          );
+        } finally {
+          setUpdating(null);
+        }
+      },
+    });
   }
 
   function getRoleColor(role: string): string {
