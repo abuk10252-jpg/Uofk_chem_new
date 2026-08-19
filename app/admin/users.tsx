@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { apiCall } from '../../src/utils/api';
+import { confirmAction } from '../../src/utils/confirmAction';
 
 interface UserItem {
   id: string;
@@ -53,64 +54,56 @@ export default function AdminUsersScreen() {
   }
 
   async function handleApprove(userId: string, userName: string) {
-    Alert.alert(
-      isArabic ? 'تأكيد' : 'Confirm',
-      isArabic ? `قبول "${userName}"؟` : `Approve "${userName}"?`,
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'قبول' : 'Approve',
-          onPress: async () => {
-            setActionLoading(userId);
-            try {
-              await apiCall(`/admin/approve/${userId}`, { method: 'POST' });
-              setUsers(prev =>
-                prev.map(u => u.id === userId ? { ...u, status: 'approved' } : u)
-              );
-              Alert.alert('✅', isArabic ? 'تم القبول' : 'User approved');
-            } catch (e: any) {
-              Alert.alert(
-                isArabic ? 'خطأ' : 'Error',
-                e?.message || (isArabic ? 'فشل القبول' : 'Failed to approve')
-              );
-            } finally {
-              setActionLoading(null);
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: isArabic ? 'تأكيد' : 'Confirm',
+      message: isArabic ? `قبول "${userName}"؟` : `Approve "${userName}"?`,
+      confirmText: isArabic ? 'قبول' : 'Approve',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      onConfirm: async () => {
+        setActionLoading(userId);
+        try {
+          await apiCall(`/admin/approve/${userId}`, { method: 'POST' });
+          setUsers(prev =>
+            prev.map(u => u.id === userId ? { ...u, status: 'approved' } : u)
+          );
+          Alert.alert('✅', isArabic ? 'تم القبول' : 'User approved');
+        } catch (e: any) {
+          Alert.alert(
+            isArabic ? 'خطأ' : 'Error',
+            e?.message || (isArabic ? 'فشل القبول' : 'Failed to approve')
+          );
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   }
 
   async function handleReject(userId: string, userName: string) {
-    Alert.alert(
-      isArabic ? 'تأكيد' : 'Confirm',
-      isArabic ? `رفض "${userName}"؟` : `Reject "${userName}"?`,
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'رفض' : 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            setActionLoading(userId);
-            try {
-              await apiCall(`/admin/reject/${userId}`, { method: 'POST' });
-              setUsers(prev =>
-                prev.map(u => u.id === userId ? { ...u, status: 'rejected' } : u)
-              );
-              Alert.alert('✅', isArabic ? 'تم الرفض' : 'User rejected');
-            } catch (e: any) {
-              Alert.alert(
-                isArabic ? 'خطأ' : 'Error',
-                e?.message || (isArabic ? 'فشل الرفض' : 'Failed to reject')
-              );
-            } finally {
-              setActionLoading(null);
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: isArabic ? 'تأكيد' : 'Confirm',
+      message: isArabic ? `رفض "${userName}"؟` : `Reject "${userName}"?`,
+      confirmText: isArabic ? 'رفض' : 'Reject',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      destructive: true,
+      onConfirm: async () => {
+        setActionLoading(userId);
+        try {
+          await apiCall(`/admin/reject/${userId}`, { method: 'POST' });
+          setUsers(prev =>
+            prev.map(u => u.id === userId ? { ...u, status: 'rejected' } : u)
+          );
+          Alert.alert('✅', isArabic ? 'تم الرفض' : 'User rejected');
+        } catch (e: any) {
+          Alert.alert(
+            isArabic ? 'خطأ' : 'Error',
+            e?.message || (isArabic ? 'فشل الرفض' : 'Failed to reject')
+          );
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   }
 
   function getStatusColor(status: string): string {
