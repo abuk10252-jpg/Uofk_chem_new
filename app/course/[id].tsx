@@ -9,6 +9,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { apiCall, apiDelete, uploadFile } from '../../src/utils/api';
 import * as DocumentPicker from 'expo-document-picker';
+import { confirmAction } from '../../src/utils/confirmAction';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 
@@ -148,29 +149,25 @@ export default function CourseDetailScreen() {
   }
 
   async function handleDelete(fileId: string, fileName: string) {
-    Alert.alert(
-      isArabic ? 'حذف الملف' : 'Delete File',
-      isArabic ? `هل تريد حذف "${fileName}"؟` : `Delete "${fileName}"?`,
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'حذف' : 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiDelete(`/courses/${id}/files/${fileId}`);
-              setFiles(prev => prev.filter(f => f.id !== fileId));
-              Alert.alert('✅', isArabic ? 'تم حذف الملف' : 'File deleted');
-            } catch {
-              Alert.alert(
-                isArabic ? 'خطأ' : 'Error',
-                isArabic ? 'فشل حذف الملف' : 'Delete failed'
-              );
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: isArabic ? 'حذف الملف' : 'Delete File',
+      message: isArabic ? `هل تريد حذف "${fileName}"؟` : `Delete "${fileName}"?`,
+      confirmText: isArabic ? 'حذف' : 'Delete',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await apiDelete(`/courses/${id}/files/${fileId}`);
+          setFiles(prev => prev.filter(f => f.id !== fileId));
+          Alert.alert('✅', isArabic ? 'تم حذف الملف' : 'File deleted');
+        } catch {
+          Alert.alert(
+            isArabic ? 'خطأ' : 'Error',
+            isArabic ? 'فشل حذف الملف' : 'Delete failed'
+          );
+        }
+      },
+    });
   }
 
   async function handleDownload(item: FileItem) {
