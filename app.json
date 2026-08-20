@@ -29,36 +29,34 @@
     },
 
     "plugins": [
-      "expo-router",
-      [
-        [
-  "expo-splash-screen",
-  {
-    "image": "./assets/images/icon.png",
-    "backgroundColor": "#002147",
-    "resizeMode": "contain"
-  }
-        ]
-      ],
-      [
-        "expo-document-picker",
-        {
-          "iCloudContainerEnvironment": "Production"
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "التطبيق محتاج الوصول لصورك عشان ترفعها في الأخبار.",
-          "cameraPermission": "التطبيق محتاج الوصول للكاميرا عشان تلتقط صورة."
-        }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": "التطبيق محتاج الوصول للميكروفون عشان تسجل رسالة صوتية."
-        }
-      ]
+  "expo-router",
+  [
+    "expo-splash-screen",
+    {
+      "image": "./assets/images/icon.png",
+      "backgroundColor": "#002147",
+      "resizeMode": "contain"
+    }
+  ],
+  [
+    "expo-document-picker",
+    {
+      "iCloudContainerEnvironment": "Production"
+    }
+  ],
+  [
+    "expo-image-picker",
+    {
+      "photosPermission": "التطبيق محتاج الوصول لصورك عشان ترفعها في الأخبار.",
+      "cameraPermission": "التطبيق محتاج الوصول للكاميرا عشان تلتقط صورة."
+    }
+  ],
+  [
+    "expo-av",
+    {
+      "microphonePermission": "التطبيق محتاج الوصول للميكروفون عشان تسجل رسالة صوتية."
+    }
+  ]
     ],
 
     "experiments": {
