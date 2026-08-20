@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, Linking, Alert
+  ActivityIndicator, Linking, Alert, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { apiCall } from '../../src/utils/api';
+import { confirmAction } from '../../src/utils/confirmAction';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileTab() {
-  const { user, logout } = useAuth();
+  const { user, logout, updatePhoto } = useAuth();
   const router = useRouter();
   const lang = user?.language || 'en';
   const isArabic = lang === 'ar';
@@ -22,6 +24,7 @@ export default function ProfileTab() {
   const [courses, setCourses] = useState<any[]>([]);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     fetchNotifications();
@@ -66,7 +69,7 @@ export default function ProfileTab() {
       const data = await apiCall('/news/');
       if (data?.news) {
         const myQuizzes = data.news.filter(
-          (n: any) => n.type === 'quiz' && n.created_by_id === user?.id
+          (n: any) => n.type === 'quiz' && n.created_by === user?.id
         );
         setQuizzes(myQuizzes);
       } else {
@@ -104,27 +107,60 @@ export default function ProfileTab() {
     }
   }
 
+  async function handlePickPhoto() {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          isArabic ? 'إذن مطلوب' : 'Permission needed',
+          isArabic
+            ? 'محتاجين إذن الوصول للصور عشان تقدر تغيّر صورة البروفايل'
+            : 'We need access to your photos to update your profile picture'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      setUploadingPhoto(true);
+      const res = await updatePhoto(result.assets[0].uri);
+      if (!res.success) {
+        Alert.alert(isArabic ? 'خطأ' : 'Error', res.message);
+      }
+    } catch (e) {
+      Alert.alert(
+        isArabic ? 'خطأ' : 'Error',
+        isArabic ? 'فشل تغيير الصورة' : 'Failed to update photo'
+      );
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
   async function handleLogout() {
-    Alert.alert(
-      isArabic ? 'تسجيل الخروج' : 'Logout',
-      isArabic ? 'هل تريد تسجيل الخروج؟' : 'Are you sure you want to logout?',
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'خروج' : 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout();
-              router.replace('/login');
-            } catch (e) {
-              console.warn('logout error:', e);
-              router.replace('/login');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: isArabic ? 'تسجيل الخروج' : 'Logout',
+      message: isArabic ? 'هل تريد تسجيل الخروج؟' : 'Are you sure you want to logout?',
+      confirmText: isArabic ? 'خروج' : 'Logout',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await logout();
+          router.replace('/login');
+        } catch (e) {
+          console.warn('logout error:', e);
+          router.replace('/login');
+        }
+      },
+    });
   }
 
   const roleLabel =
@@ -211,9 +247,23 @@ export default function ProfileTab() {
 
       {/* بطاقة المستخدم */}
       <View style={styles.profileCard}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={28} color={Colors.primary} />
-        </View>
+        <TouchableOpacity
+          style={styles.avatar}
+          onPress={handlePickPhoto}
+          disabled={uploadingPhoto}
+          activeOpacity={0.7}
+        >
+          {uploadingPhoto ? (
+            <ActivityIndicator color={Colors.primary} />
+          ) : user?.profile_pic ? (
+            <Image source={{ uri: user.profile_pic }} style={styles.avatarImage} />
+          ) : (
+            <Ionicons name="person" size={28} color={Colors.primary} />
+          )}
+          <View style={styles.avatarEditBadge}>
+            <Ionicons name="camera" size={12} color="#FFF" />
+          </View>
+        </TouchableOpacity>
         <View style={styles.profileInfo}>
           <Text style={styles.profileName}>{user?.name || '---'}</Text>
           <Text style={styles.profileEmail}>{user?.email || '---'}</Text>
@@ -384,7 +434,17 @@ const styles = StyleSheet.create({
   avatar: {
     width: 60, height: 60, borderRadius: 30,
     backgroundColor: '#EEE', justifyContent: 'center',
-    alignItems: 'center', marginRight: 14,
+    alignItems: 'center', marginRight: 14, overflow: 'visible',
+  },
+  avatarImage: {
+    width: 60, height: 60, borderRadius: 30,
+  },
+  avatarEditBadge: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: Colors.accent,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#FFF',
   },
   profileInfo: { flex: 1 },
   profileName: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },

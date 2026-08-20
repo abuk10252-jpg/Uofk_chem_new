@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  ActivityIndicator, Alert, TextInput, RefreshControl
+  ActivityIndicator, Alert, TextInput, RefreshControl, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -137,7 +137,11 @@ export default function ManageRoles() {
         {/* معلومات المستخدم */}
         <View style={styles.userInfo}>
           <View style={styles.avatarWrap}>
-            <Ionicons name="person" size={20} color={Colors.primary} />
+            {item.profile_pic ? (
+              <Image source={{ uri: item.profile_pic }} style={styles.avatarImage} />
+            ) : (
+              <Ionicons name="person" size={20} color={Colors.primary} />
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.nameRow}>
@@ -358,8 +362,9 @@ const styles = StyleSheet.create({
   avatarWrap: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: Colors.background,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
+  avatarImage: { width: 40, height: 40, borderRadius: 20 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: {
     fontSize: 16, fontWeight: '700',

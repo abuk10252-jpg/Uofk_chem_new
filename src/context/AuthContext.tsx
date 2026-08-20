@@ -7,19 +7,26 @@ import {
   sendPasswordResetEmail,
   Auth,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, Firestore } from 'firebase/firestore';
-import { getFirebaseAuth, getFirebaseDb } from '../firebase';
+import { doc, getDoc, setDoc, updateDoc, Firestore } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from '../firebase';
 
 type UserRole = 'student' | 'admin' | 'super_admin' | null;
 type UserStatus = 'pending' | 'approved' | 'rejected' | null;
 
 interface AuthUser {
-  uid: string;
+  // الحقول دي هي نفسها اللي كل شاشات التطبيق والباك إند بيتوقعوها
+  id: string;
+  uid: string; // نفس id، متسيبة للتوافق مع أي كود قديم بيستخدمها
   email: string;
   role: UserRole;
   status: UserStatus;
-  displayName?: string;
-  universityId?: string;
+  name?: string;
+  displayName?: string; // نفس name، متسيبة للتوافق مع أي كود قديم بيستخدمها
+  university_id?: string;
+  universityId?: string; // نفس university_id، متسيبة للتوافق
+  language?: 'ar' | 'en';
+  profile_pic?: string;
 }
 
 interface AuthContextType {
@@ -30,6 +37,7 @@ interface AuthContextType {
   logout: () => Promise<{ success: boolean; message: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   refreshUser: () => Promise<void>;
+  updatePhoto: (uri: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -59,21 +67,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (firebaseUser && db) {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
-            const userData = userDoc.data();
+            const userData: any = userDoc.data();
             setUser({
+              id: firebaseUser.uid,
               uid: firebaseUser.uid,
               email: firebaseUser.email!,
               role: userData.role || 'student',
               status: userData.status || 'pending',
-              displayName: userData.displayName,
-              universityId: userData.universityId,
+              name: userData.name || userData.displayName,
+              displayName: userData.name || userData.displayName,
+              university_id: userData.university_id || userData.universityId,
+              universityId: userData.university_id || userData.universityId,
+              language: userData.language || 'ar',
+              profile_pic: userData.profile_pic || '',
             });
           } else {
             setUser({
+              id: firebaseUser.uid,
               uid: firebaseUser.uid,
               email: firebaseUser.email!,
               role: 'student',
               status: 'pending',
+              language: 'ar',
             });
           }
         } else {
@@ -96,11 +111,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     if (email.trim().toLowerCase() === TEST_ADMIN_EMAIL && password === TEST_ADMIN_PASSWORD) {
       setUser({
+        id: 'local-test-super-admin',
         uid: 'local-test-super-admin',
         email: TEST_ADMIN_EMAIL,
         role: 'super_admin',
         status: 'approved',
+        name: 'حساب تجربة (سوبر أدمن)',
         displayName: 'حساب تجربة (سوبر أدمن)',
+        language: 'ar',
       });
       setLoading(false);
       return { success: true, message: 'دخول تجريبي كسوبر أدمن' };
@@ -158,11 +176,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
       await setDoc(doc(db, 'users', userCredential.user.uid), {
+        id: userCredential.user.uid,
         email,
+        name: displayName,
         displayName,
+        university_id: universityId,
         universityId,
         role: 'student',
         status: 'pending',
+        language: 'ar',
+        profile_pic: '',
         createdAt: new Date().toISOString(),
       });
 
@@ -201,18 +224,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!auth?.currentUser || !db) return;
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
-        const userData = userDoc.data();
+        const userData: any = userDoc.data();
         setUser({
+          id: auth.currentUser.uid,
           uid: auth.currentUser.uid,
           email: auth.currentUser.email!,
           role: userData.role || 'student',
           status: userData.status || 'pending',
-          displayName: userData.displayName,
-          universityId: userData.universityId,
+          name: userData.name || userData.displayName,
+          displayName: userData.name || userData.displayName,
+          university_id: userData.university_id || userData.universityId,
+          universityId: userData.university_id || userData.universityId,
+          language: userData.language || 'ar',
+          profile_pic: userData.profile_pic || '',
         });
       }
     } catch (error) {
       console.warn('Error refreshing user:', error);
+    }
+  };
+
+  // رفع صورة البروفايل: بترفع الصورة على Firebase Storage، تحفظ رابطها في
+  // Firestore (نفس حقل profile_pic اللي الباك إند بيستخدمه)، وتحدّث الحالة محليًا
+  const updatePhoto = async (uri: string) => {
+    try {
+      if (!auth?.currentUser || !db) {
+        return { success: false, message: 'خدمة المصادقة غير متاحة حالياً' };
+      }
+
+      const storage = getFirebaseStorage();
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      const fileRef = storageRef(storage, `avatars/${auth.currentUser.uid}.jpg`);
+      await uploadBytes(fileRef, blob);
+      const downloadUrl = await getDownloadURL(fileRef);
+
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+        profile_pic: downloadUrl,
+      });
+
+      setUser(prev => (prev ? { ...prev, profile_pic: downloadUrl } : prev));
+
+      return { success: true, message: 'تم تحديث الصورة بنجاح' };
+    } catch (error) {
+      console.warn('Error updating photo:', error);
+      return { success: false, message: 'فشل رفع الصورة' };
     }
   };
 
@@ -234,7 +291,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, resetPassword, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, resetPassword, refreshUser, updatePhoto }}>
       {children}
     </AuthContext.Provider>
   );

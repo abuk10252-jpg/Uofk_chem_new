@@ -9,6 +9,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { apiCall, apiPut, apiDelete } from '../../src/utils/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { confirmAction } from '../../src/utils/confirmAction';
 
 interface Course {
   id: string;
@@ -149,28 +150,24 @@ export default function AcademicTab() {
   }
 
   async function handleDeleteCourse(course: Course) {
-    Alert.alert(
-      isArabic ? 'حذف الكورس' : 'Delete Course',
-      isArabic
+    confirmAction({
+      title: isArabic ? 'حذف الكورس' : 'Delete Course',
+      message: isArabic
         ? `هل تريد حذف "${course.name_ar || course.name}"؟`
         : `Delete "${course.name}"?`,
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'حذف' : 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiDelete(`/courses/${course.id}`);
-              fetchCourses();
-              Alert.alert('✅', isArabic ? 'تم حذف الكورس' : 'Course deleted');
-            } catch {
-              Alert.alert('خطأ', 'فشل حذف الكورس');
-            }
-          },
-        },
-      ]
-    );
+      confirmText: isArabic ? 'حذف' : 'Delete',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await apiDelete(`/courses/${course.id}`);
+          fetchCourses();
+          Alert.alert('✅', isArabic ? 'تم حذف الكورس' : 'Course deleted');
+        } catch {
+          Alert.alert('خطأ', 'فشل حذف الكورس');
+        }
+      },
+    });
   }
 
   async function handleCreateCourse() {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   ActivityIndicator, RefreshControl, TextInput, ScrollView,
-  Modal, Alert
+  Modal, Alert, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +26,7 @@ interface NewsItem {
   content_ar: string;
   image: string;
   created_by_name: string;
+  created_by_photo?: string;
   created_at: string;
   reactions: Record<string, number>;
   user_reactions: Record<string, string>;
@@ -456,7 +457,11 @@ export default function NewsTab() {
         {/* هيدر البوست */}
         <View style={styles.cardHeader}>
           <View style={styles.authorAvatar}>
-            <Ionicons name="person" size={18} color={Colors.primary} />
+            {item.created_by_photo ? (
+              <Image source={{ uri: item.created_by_photo }} style={styles.authorAvatarImage} />
+            ) : (
+              <Ionicons name="person" size={18} color={Colors.primary} />
+            )}
           </View>
           <View style={styles.authorInfo}>
             <Text style={styles.authorName}>{item.created_by_name}</Text>
@@ -553,6 +558,15 @@ export default function NewsTab() {
                 }}
                 style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}
               >
+                {!isMine && (
+                  <View style={styles.commentAvatar}>
+                    {c.user_photo ? (
+                      <Image source={{ uri: c.user_photo }} style={styles.commentAvatarImage} />
+                    ) : (
+                      <Ionicons name="person" size={12} color={Colors.primary} />
+                    )}
+                  </View>
+                )}
                 <View style={[styles.bubble, isMine && styles.bubbleMine]}>
                   {!isMine && <Text style={styles.commentName}>{c.user_name}</Text>}
                   {c.reply_to && (
@@ -820,8 +834,9 @@ const styles = StyleSheet.create({
   authorAvatar: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: Colors.background,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
+  authorAvatarImage: { width: 36, height: 36, borderRadius: 18 },
   authorInfo: { flex: 1 },
   authorName: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
   postDate: { fontSize: 12, color: Colors.textSecondary },
@@ -927,11 +942,18 @@ const styles = StyleSheet.create({
     fontSize: 12, color: Colors.accent,
     fontWeight: '600', marginBottom: 8, textAlign: 'center',
   },
+  // فقاعات المحادثة بأسلوب واتساب
   bubbleRow: {
     flexDirection: 'row', alignItems: 'flex-end',
     marginBottom: 6, maxWidth: '86%', alignSelf: 'flex-start', gap: 4,
   },
   bubbleRowMine: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
+  commentAvatar: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', marginBottom: 2,
+  },
+  commentAvatarImage: { width: 22, height: 22, borderRadius: 11 },
   bubble: {
     backgroundColor: '#FFF', borderRadius: 12, borderTopLeftRadius: 2,
     paddingHorizontal: 10, paddingVertical: 7,
@@ -945,6 +967,7 @@ const styles = StyleSheet.create({
   commentText: { fontSize: 14, color: Colors.textPrimary },
   commentTextMine: { color: Colors.textPrimary },
   replyIconBtn: { padding: 4 },
+  // اقتباس الرسالة المردود عليها، جوه الفقاعة نفسها
   quoteBox: {
     flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)',
     borderRadius: 8, padding: 6, marginBottom: 4, gap: 6,
@@ -952,6 +975,7 @@ const styles = StyleSheet.create({
   quoteBar: { width: 3, borderRadius: 2, backgroundColor: Colors.accent },
   quoteName: { fontSize: 11, fontWeight: '700', color: Colors.accent },
   quoteText: { fontSize: 12, color: Colors.textSecondary },
+  // شريط "الرد على" اللي بيظهر فوق حقل الكتابة قبل الإرسال
   replyPreviewBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF', borderRadius: 10,

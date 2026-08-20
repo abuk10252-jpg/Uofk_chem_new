@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActivityIndicator, Alert, TextInput, RefreshControl
+  ActivityIndicator, Alert, TextInput, RefreshControl, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,7 @@ interface UserItem {
   role: string;
   status: string;
   last_online: string;
+  profile_pic?: string;
 }
 
 export default function AdminUsersScreen() {
@@ -153,9 +154,13 @@ export default function AdminUsersScreen() {
       <View style={styles.userCard}>
         <View style={styles.userHeader}>
           <View style={[styles.userAvatar, { backgroundColor: Colors.primary }]}>
-            <Text style={styles.avatarText}>
-              {item.name?.charAt(0)?.toUpperCase() || '?'}
-            </Text>
+            {item.profile_pic ? (
+              <Image source={{ uri: item.profile_pic }} style={styles.userAvatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>
+                {item.name?.charAt(0)?.toUpperCase() || '?'}
+              </Text>
+            )}
           </View>
 
           <View style={styles.userInfo}>
@@ -364,7 +369,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03, shadowRadius: 8, elevation: 2,
   },
   userHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  userAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  userAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden' },
+  userAvatarImage: { width: 42, height: 42, borderRadius: 21 },
   avatarText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   userInfo: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
