@@ -1,6 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 
+// ملاحظة: منطق التوجيه (redirect) بالكامل موجود في app/_layout.tsx (RootLayoutNav).
+// لا تضيفوا router.replace هنا مرة أخرى - وجود منطقين للتوجيه في نفس الوقت
+// كان بيسبب تعارض/كراش عند تحميل التطبيق.
+
 export default function Index() {
   const titleAnim = useRef(new Animated.Value(0)).current;
   const lineAnim = useRef(new Animated.Value(0)).current;
