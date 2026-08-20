@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { apiCall } from '../../src/utils/api';
+import { confirmAction } from '../../src/utils/confirmAction';
 
 const EMOJIS = [
   '👍','❤️','🔥','😍','👏','💡','📚','✅','🎯','💪',
@@ -205,25 +206,21 @@ export default function NewsTab() {
   }
 
   async function handleDelete(newsId: string) {
-    Alert.alert(
-      isArabic ? 'حذف' : 'Delete',
-      isArabic ? 'هل تريد حذف هذا المنشور؟' : 'Delete this post?',
-      [
-        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: isArabic ? 'حذف' : 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiCall(`/news/${newsId}`, { method: 'DELETE' });
-              setNews(prev => prev.filter(n => n.id !== newsId));
-            } catch {
-              Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'فشل الحذف' : 'Delete failed');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: isArabic ? 'حذف' : 'Delete',
+      message: isArabic ? 'هل تريد حذف هذا المنشور؟' : 'Delete this post?',
+      confirmText: isArabic ? 'حذف' : 'Delete',
+      cancelText: isArabic ? 'إلغاء' : 'Cancel',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await apiCall(`/news/${newsId}`, { method: 'DELETE' });
+          setNews(prev => prev.filter(n => n.id !== newsId));
+        } catch {
+          Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'فشل الحذف' : 'Delete failed');
+        }
+      },
+    });
   }
 
   async function handleSaveEdit() {
@@ -930,7 +927,6 @@ const styles = StyleSheet.create({
     fontSize: 12, color: Colors.accent,
     fontWeight: '600', marginBottom: 8, textAlign: 'center',
   },
-  // فقاعات المحادثة بأسلوب واتساب
   bubbleRow: {
     flexDirection: 'row', alignItems: 'flex-end',
     marginBottom: 6, maxWidth: '86%', alignSelf: 'flex-start', gap: 4,
@@ -949,7 +945,6 @@ const styles = StyleSheet.create({
   commentText: { fontSize: 14, color: Colors.textPrimary },
   commentTextMine: { color: Colors.textPrimary },
   replyIconBtn: { padding: 4 },
-  // اقتباس الرسالة المردود عليها، جوه الفقاعة نفسها
   quoteBox: {
     flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)',
     borderRadius: 8, padding: 6, marginBottom: 4, gap: 6,
@@ -957,7 +952,6 @@ const styles = StyleSheet.create({
   quoteBar: { width: 3, borderRadius: 2, backgroundColor: Colors.accent },
   quoteName: { fontSize: 11, fontWeight: '700', color: Colors.accent },
   quoteText: { fontSize: 12, color: Colors.textSecondary },
-  // شريط "الرد على" اللي بيظهر فوق حقل الكتابة قبل الإرسال
   replyPreviewBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF', borderRadius: 10,
