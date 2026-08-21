@@ -14,6 +14,7 @@ interface Notification {
   title: string;
   body: string;
   file_type?: string;
+  file_id?: string;
   course_id?: string;
   created_at: string;
   read?: boolean;
@@ -144,7 +145,12 @@ export default function NotificationsPage() {
             style={[styles.notifCard, !n.read && styles.notifCardUnread]}
             onPress={() => {
               if (n.course_id) {
-                router.push(`/course/${n.course_id}`);
+                // لو الإشعار بتاع ملف معيّن، بنودي المستخدم لصفحة المادة
+                // ونمرر id الملف عشان يتفتح مباشرة من غير ما يدور عليه
+                router.push({
+                  pathname: `/course/${n.course_id}`,
+                  params: n.file_id ? { openFile: n.file_id } : {},
+                });
               }
             }}
             activeOpacity={n.course_id ? 0.7 : 1}

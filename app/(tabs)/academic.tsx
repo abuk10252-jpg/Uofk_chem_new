@@ -18,6 +18,7 @@ interface Course {
   description: string;
   description_ar: string;
   file_count: number;
+  files?: any[];
 }
 
 interface SearchResults {
@@ -206,6 +207,9 @@ export default function AcademicTab() {
       ? item.description_ar
       : item.description;
 
+    const fileCount = item.files?.length || 0;
+    const folderCount = new Set((item.files || []).map((f: any) => f.folder || 'General')).size;
+
     return (
       <TouchableOpacity
         style={styles.courseCard}
@@ -224,7 +228,11 @@ export default function AcademicTab() {
           <View style={styles.courseStats}>
             <Ionicons name="document-outline" size={12} color={Colors.textSecondary} />
             <Text style={styles.statText}>
-              {' '}{item.file_count || 0} {isArabic ? 'ملف' : 'files'}
+              {' '}{fileCount} {isArabic ? 'ملف' : 'files'}
+            </Text>
+            <Ionicons name="folder-outline" size={12} color={Colors.textSecondary} style={{ marginLeft: 10 }} />
+            <Text style={styles.statText}>
+              {' '}{folderCount} {isArabic ? 'مجلد' : 'folders'}
             </Text>
           </View>
         </View>

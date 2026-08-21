@@ -37,6 +37,12 @@ interface NewsItem {
   quiz_time_limit?: number;
   quiz_submissions?: any[];
   quiz_results_published?: boolean;
+  // بيانات منشورات "ملف جديد" الأوتوماتيكية بس (type === 'file')
+  course_id?: string;
+  folder?: string;
+  file_id?: string;
+  file_name?: string;
+  file_type?: string;
 }
 
 export default function NewsTab() {
@@ -59,6 +65,8 @@ export default function NewsTab() {
   const [editContent, setEditContent] = useState('');
   const [quizResultsModal, setQuizResultsModal] = useState<any>(null);
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  // بيتحكم في إظهار/إخفاء لوحة التعليقات كلها (زي تلجرام: تدوس "كتابة تعليق" عشان تظهر)
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   // الرسالة اللي بيتم الرد عليها حالياً، لكل بوست على حدة (زي الرد في واتساب)
   const [replyingTo, setReplyingTo] = useState<Record<string, { id: string; name: string; text: string } | null>>({});
 
@@ -443,7 +451,38 @@ export default function NewsTab() {
     );
   }
 
+  // مربع صغير لمنشور "ملف جديد" الأوتوماتيكي - أصغر من الخبر العادي،
+  // بدون تفاعلات ولا تعليقات خالص، الدوس عليه يودي مباشرة للملف
+  function renderFileNewsItem(item: NewsItem) {
+    const content = isArabic && item.content_ar ? item.content_ar : item.content;
+    return (
+      <TouchableOpacity
+        style={styles.fileNewsCard}
+        activeOpacity={0.7}
+        onPress={() => {
+          if (item.course_id) {
+            router.push({
+              pathname: `/course/${item.course_id}`,
+              params: item.file_id ? { openFile: item.file_id } : {},
+            });
+          }
+        }}
+      >
+        <View style={styles.fileNewsIconWrap}>
+          <Ionicons name="document-attach" size={18} color={Colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.fileNewsText} numberOfLines={2}>{content}</Text>
+          <Text style={styles.fileNewsTime}>{formatDate(item.created_at)}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
+      </TouchableOpacity>
+    );
+  }
+
   function renderNewsItem({ item }: { item: NewsItem }) {
+    if (item.type === 'file') return renderFileNewsItem(item);
+
     const title = isArabic && item.title_ar ? item.title_ar : item.title;
     const content = isArabic && item.content_ar ? item.content_ar : item.content;
     const userReaction = getUserReaction(item);
@@ -540,8 +579,34 @@ export default function NewsTab() {
           </View>
         )}
 
-        {/* التعليقات - بأسلوب واتساب: فقاعات + إمكانية الرد على رسالة معينة */}
+        {/* شريط التعليقات المصغّر بأسلوب تلجرام - يدوس عليه المستخدم عشان يفتح لوحة التعليقات */}
+        {!openComments[item.id] && (
+          <TouchableOpacity
+            style={styles.commentsBar}
+            activeOpacity={0.7}
+            onPress={() => setOpenComments(prev => ({ ...prev, [item.id]: true }))}
+          >
+            <Ionicons name="chatbubble-outline" size={16} color={Colors.textSecondary} />
+            <Text style={styles.commentsBarText}>
+              {item.comments?.length
+                ? (isArabic ? `${item.comments.length} تعليق` : `${item.comments.length} comments`)
+                : (isArabic ? 'كتابة تعليق' : 'Write a comment')}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* لوحة التعليقات الكاملة - بأسلوب واتساب: فقاعات + إمكانية الرد على رسالة معينة */}
+        {openComments[item.id] && (
         <View style={styles.commentSection}>
+          <TouchableOpacity
+            style={styles.hideCommentsBtn}
+            onPress={() => setOpenComments(prev => ({ ...prev, [item.id]: false }))}
+          >
+            <Ionicons name="chevron-up" size={14} color={Colors.textSecondary} />
+            <Text style={styles.hideCommentsText}>
+              {isArabic ? 'إخفاء التعليقات' : 'Hide comments'}
+            </Text>
+          </TouchableOpacity>
           {visibleComments?.map((c: any, i: number) => {
             const commentId = c.id || `${item.id}-${i}`;
             const isMine = isAdmin && c.user_id === user?.id;
@@ -676,6 +741,7 @@ export default function NewsTab() {
             </Text>
           )}
         </View>
+        )}
       </View>
     );
   }
@@ -937,6 +1003,31 @@ const styles = StyleSheet.create({
     borderRadius: 8, backgroundColor: Colors.background, gap: 4,
   },
   quizAdminText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  // شريط التعليقات المصغّر بأسلوب تلجرام (قبل ما يدوس عليه المستخدم)
+  commentsBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 6, paddingVertical: 8, paddingHorizontal: 4,
+  },
+  commentsBarText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
+  hideCommentsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'center', paddingVertical: 4, paddingHorizontal: 10, marginBottom: 4,
+  },
+  hideCommentsText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+  // مربع منشور "ملف جديد" الصغير في فيد الأخبار
+  fileNewsCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#FFF', borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
+  },
+  fileNewsIconWrap: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.accent + '15',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fileNewsText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
+  fileNewsTime: { fontSize: 11, color: '#999', marginTop: 2 },
   commentSection: { marginTop: 4, backgroundColor: '#ECE5DD', borderRadius: 14, padding: 10 },
   moreComments: {
     fontSize: 12, color: Colors.accent,

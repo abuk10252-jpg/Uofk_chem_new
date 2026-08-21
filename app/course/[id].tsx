@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActivityIndicator, Alert, Linking, SectionList, Modal, TextInput
+  ActivityIndicator, Alert, Linking, Modal, TextInput
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +30,7 @@ interface FolderSection {
 }
 
 export default function CourseDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, openFile } = useLocalSearchParams<{ id: string; openFile?: string }>();
   const { user } = useAuth();
   const router = useRouter();
   const lang = user?.language || 'en';
@@ -47,6 +47,10 @@ export default function CourseDetailScreen() {
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [pendingUpload, setPendingUpload] = useState<{ uri: string; name: string; mimeType?: string; folder: string } | null>(null);
   const [uploadNameInput, setUploadNameInput] = useState('');
+  // عشان لو جينا من إشعار "ملف جديد" نفتح الملف تلقائي مرة واحدة بس
+  const [autoOpenedFile, setAutoOpenedFile] = useState(false);
+  // الفولدر المفتوح حالياً - null يعني إحنا في قائمة الفولدرات مش جوه واحد منهم
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
 
   // الفولدرات الافتراضية
   const DEFAULT_FOLDERS = [
@@ -85,6 +89,17 @@ export default function CourseDetailScreen() {
   useEffect(() => {
     fetchCourse();
   }, [id]);
+
+  // فتح الملف تلقائي لو جينا من إشعار (openFile في الرابط) بمجرد ما الملفات تحمل
+  useEffect(() => {
+    if (!openFile || autoOpenedFile || loading || !files.length) return;
+    const target = files.find(f => f.id === openFile);
+    if (target) {
+      setAutoOpenedFile(true);
+      setActiveFolder(target.folder || 'General');
+      handleDownload(target);
+    }
+  }, [openFile, autoOpenedFile, loading, files]);
 
   // تجميع الملفات في فولدرات
   function getGroupedFiles(): FolderSection[] {
@@ -299,19 +314,25 @@ export default function CourseDetailScreen() {
     );
   }
 
-  function renderSectionHeader({ section }: { section: FolderSection }) {
+  // كرت فولدر في قائمة الفولدرات - بيدوس عليه المستخدم عشان يدخل جوه ويشوف الملفات
+  function renderFolderCard({ item }: { item: FolderSection }) {
     return (
-      <View style={styles.folderHeader}>
-        <Ionicons
-          name={getFolderIcon(section.title) as any}
-          size={20}
-          color={Colors.accent}
-        />
-        <Text style={styles.folderTitle}>{section.title}</Text>
-        <Text style={styles.folderCount}>
-          {section.data.length} {isArabic ? 'ملف' : 'files'}
-        </Text>
-      </View>
+      <TouchableOpacity
+        style={styles.folderCard}
+        activeOpacity={0.7}
+        onPress={() => setActiveFolder(item.title)}
+      >
+        <View style={styles.folderCardIcon}>
+          <Ionicons name={getFolderIcon(item.title) as any} size={22} color={Colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.folderCardTitle}>{item.title}</Text>
+          <Text style={styles.folderCardCount}>
+            {item.data.length} {isArabic ? 'ملف' : 'files'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+      </TouchableOpacity>
     );
   }
 
@@ -527,7 +548,7 @@ export default function CourseDetailScreen() {
         </View>
       </Modal>
 
-      {/* قائمة الملفات مجمعة في فولدرات */}
+      {/* قائمة الملفات مجمعة في فولدرات - قائمة الفولدرات، أو محتوى فولدر معيّن لو اتفتح */}
       {files.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Ionicons name="folder-open-outline" size={64} color={Colors.border} />
@@ -540,14 +561,33 @@ export default function CourseDetailScreen() {
             </Text>
           )}
         </View>
+      ) : activeFolder === null ? (
+        // قائمة الفولدرات
+        <FlatList
+          data={groupedFiles}
+          keyExtractor={section => section.title}
+          renderItem={renderFolderCard}
+          contentContainerStyle={styles.listContent}
+        />
       ) : (
-        <SectionList
-          sections={groupedFiles}
+        // جوه فولدر معيّن - قائمة الملفات بتاعته بس
+        <FlatList
+          data={groupedFiles.find(g => g.title === activeFolder)?.data || []}
           keyExtractor={item => item.id}
           renderItem={renderFile}
-          renderSectionHeader={renderSectionHeader}
           contentContainerStyle={styles.listContent}
-          stickySectionHeadersEnabled={false}
+          ListHeaderComponent={
+            <TouchableOpacity
+              style={styles.folderBackRow}
+              onPress={() => setActiveFolder(null)}
+            >
+              <Ionicons name="arrow-back" size={18} color={Colors.accent} />
+              <Text style={styles.folderBackText}>
+                {isArabic ? 'كل المجلدات' : 'All folders'}
+              </Text>
+              <Text style={styles.folderBackTitle}>· {activeFolder}</Text>
+            </TouchableOpacity>
+          }
         />
       )}
     </View>
@@ -653,18 +693,27 @@ const styles = StyleSheet.create({
   uploadConfirmText: {
     color: '#FFF', fontSize: 14, fontWeight: '700',
   },
-  folderHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: Colors.background, gap: 8,
+  folderCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#FFF', marginHorizontal: 16,
+    marginBottom: 10, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(0,33,71,0.05)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03, shadowRadius: 8, elevation: 2,
   },
-  folderTitle: {
-    fontSize: 15, fontWeight: '700',
-    color: Colors.textPrimary, flex: 1,
+  folderCardIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: Colors.accent + '15',
+    alignItems: 'center', justifyContent: 'center',
   },
-  folderCount: {
-    fontSize: 12, color: Colors.textSecondary,
+  folderCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+  folderCardCount: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  folderBackRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 16, paddingVertical: 12,
   },
+  folderBackText: { fontSize: 14, fontWeight: '700', color: Colors.accent },
+  folderBackTitle: { fontSize: 14, color: Colors.textSecondary },
   listContent: { paddingBottom: 32 },
   fileCard: {
     flexDirection: 'row', alignItems: 'center',
