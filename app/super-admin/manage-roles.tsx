@@ -90,7 +90,7 @@ export default function ManageRoles() {
       onConfirm: async () => {
         setUpdating(uid);
         try {
-          const data = await apiCall(`/admin/set-role/${uid}`, {
+          const data = await apiCall(`/super-admin/set-role/${uid}`, {
             method: 'POST',
             body: JSON.stringify({ role }),
           });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActivityIndicator, Alert, Linking, SectionList
+  ActivityIndicator, Alert, Linking, SectionList, Modal, TextInput
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,6 +43,10 @@ export default function CourseDetailScreen() {
   const [uploading, setUploading] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState<{ uri: string; name: string; mimeType?: string; folder: string } | null>(null);
+  const [uploadNameInput, setUploadNameInput] = useState('');
 
   // الفولدرات الافتراضية
   const DEFAULT_FOLDERS = [
@@ -60,7 +64,7 @@ export default function CourseDetailScreen() {
       const data = await apiCall(`/courses/${id}`);
       if (data?.course) {
         setCourse(data.course);
-        setFiles(data.files || []);
+        setFiles(data.course.files || []);
       } else {
         Alert.alert(
           isArabic ? 'خطأ' : 'Error',
@@ -106,6 +110,8 @@ export default function CourseDetailScreen() {
 
   async function handleUpload(folder: string) {
     setShowFolderPicker(false);
+    setShowNewFolderInput(false);
+    setNewFolderName('');
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -117,20 +123,37 @@ export default function CourseDetailScreen() {
       const file = result.assets[0];
       if (!file) return;
 
-      setUploading(true);
+      // بدل ما نرفع على طول، نفتح نافذة صغيرة تدي الأدمن فرصة يغيّر اسم الملف
+      setPendingUpload({ uri: file.uri, name: file.name, mimeType: file.mimeType, folder });
+      setUploadNameInput(file.name);
+    } catch (e: any) {
+      Alert.alert(
+        isArabic ? 'خطأ' : 'Error',
+        e.message || (isArabic ? 'فشل اختيار الملف' : 'Failed to pick file')
+      );
+    }
+  }
 
+  async function confirmUpload() {
+    if (!pendingUpload) return;
+    const finalName = uploadNameInput.trim() || pendingUpload.name;
+
+    setUploading(true);
+    try {
       const formData = new FormData();
       formData.append('file', {
-        uri: file.uri,
-        name: file.name,
-        type: file.mimeType || 'application/octet-stream',
+        uri: pendingUpload.uri,
+        name: pendingUpload.name,
+        type: pendingUpload.mimeType || 'application/octet-stream',
       } as any);
-      formData.append('folder', folder);
+      formData.append('folder', pendingUpload.folder);
+      formData.append('name', finalName);
 
       const data = await uploadFile(`/courses/${id}/files`, formData);
 
       if (data?.file) {
         setFiles(prev => [data.file, ...prev]);
+        setPendingUpload(null);
         Alert.alert(
           '✅',
           isArabic ? 'تم رفع الملف بنجاح' : 'File uploaded successfully'
@@ -389,10 +412,60 @@ export default function CourseDetailScreen() {
                 <Text style={styles.folderPickerLabel}>{folder.label}</Text>
               </TouchableOpacity>
             ))}
+            {/* مجلدات مخصصة اتعملت قبل كده (مش من القايمة الافتراضية) */}
+            {getExistingFolders()
+              .filter(f => !DEFAULT_FOLDERS.some(d => d.key === f))
+              .map(folder => (
+                <TouchableOpacity
+                  key={folder}
+                  style={styles.folderPickerItem}
+                  onPress={() => handleUpload(folder)}
+                >
+                  <Ionicons name="folder" size={24} color={Colors.primary} />
+                  <Text style={styles.folderPickerLabel}>{folder}</Text>
+                </TouchableOpacity>
+              ))}
           </View>
+
+          {/* إنشاء مجلد جديد بالاسم اللي عايزه الأدمن */}
+          {showNewFolderInput ? (
+            <View style={styles.newFolderRow}>
+              <TextInput
+                style={styles.newFolderInput}
+                placeholder={isArabic ? 'اسم المجلد الجديد' : 'New folder name'}
+                placeholderTextColor={Colors.textSecondary}
+                value={newFolderName}
+                onChangeText={setNewFolderName}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={styles.newFolderConfirmBtn}
+                onPress={() => {
+                  if (newFolderName.trim()) handleUpload(newFolderName.trim());
+                }}
+              >
+                <Ionicons name="checkmark" size={20} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.newFolderBtn}
+              onPress={() => setShowNewFolderInput(true)}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={Colors.accent} />
+              <Text style={styles.newFolderBtnText}>
+                {isArabic ? 'مجلد جديد باسم مخصص' : 'New custom folder'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.cancelPickerBtn}
-            onPress={() => setShowFolderPicker(false)}
+            onPress={() => {
+              setShowFolderPicker(false);
+              setShowNewFolderInput(false);
+              setNewFolderName('');
+            }}
           >
             <Text style={styles.cancelPickerText}>
               {isArabic ? 'إلغاء' : 'Cancel'}
@@ -400,6 +473,59 @@ export default function CourseDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* نافذة تأكيد اسم الملف قبل الرفع */}
+      <Modal
+        visible={!!pendingUpload}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !uploading && setPendingUpload(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.nameModalContent}>
+            <Text style={styles.folderPickerTitle}>
+              {isArabic ? 'اسم الملف' : 'File Name'}
+            </Text>
+            <Text style={styles.nameModalHint}>
+              {isArabic
+                ? 'تقدر تغيّر الاسم اللي هيبان للطلاب، أو تسيبه زي ما هو'
+                : "You can change the name students will see, or leave it as is"}
+            </Text>
+            <TextInput
+              style={styles.newFolderInput}
+              value={uploadNameInput}
+              onChangeText={setUploadNameInput}
+              placeholder={isArabic ? 'اسم الملف' : 'File name'}
+              placeholderTextColor={Colors.textSecondary}
+              editable={!uploading}
+            />
+            <View style={styles.modalBtnsRow}>
+              <TouchableOpacity
+                style={[styles.cancelPickerBtn, { flex: 1 }]}
+                onPress={() => setPendingUpload(null)}
+                disabled={uploading}
+              >
+                <Text style={styles.cancelPickerText}>
+                  {isArabic ? 'إلغاء' : 'Cancel'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.uploadConfirmBtn}
+                onPress={confirmUpload}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.uploadConfirmText}>
+                    {isArabic ? 'رفع' : 'Upload'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* قائمة الملفات مجمعة في فولدرات */}
       {files.length === 0 ? (
@@ -485,6 +611,47 @@ const styles = StyleSheet.create({
   },
   cancelPickerText: {
     fontSize: 14, color: Colors.textSecondary, fontWeight: '600',
+  },
+  newFolderBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, marginTop: 12, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1, borderColor: Colors.accent,
+    borderStyle: 'dashed',
+  },
+  newFolderBtnText: {
+    fontSize: 13, fontWeight: '600', color: Colors.accent,
+  },
+  newFolderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12,
+  },
+  newFolderInput: {
+    flex: 1, backgroundColor: Colors.background, borderWidth: 1,
+    borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 14,
+    paddingVertical: 10, fontSize: 14, color: Colors.textPrimary,
+  },
+  newFolderConfirmBtn: {
+    width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.accent,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', padding: 24,
+  },
+  nameModalContent: {
+    backgroundColor: '#FFF', borderRadius: 16, padding: 20,
+  },
+  nameModalHint: {
+    fontSize: 12, color: Colors.textSecondary, marginBottom: 12, marginTop: 4,
+  },
+  modalBtnsRow: {
+    flexDirection: 'row', gap: 10, marginTop: 16,
+  },
+  uploadConfirmBtn: {
+    flex: 1, backgroundColor: Colors.accent, borderRadius: 10,
+    paddingVertical: 12, alignItems: 'center', justifyContent: 'center',
+  },
+  uploadConfirmText: {
+    color: '#FFF', fontSize: 14, fontWeight: '700',
   },
   folderHeader: {
     flexDirection: 'row', alignItems: 'center',
