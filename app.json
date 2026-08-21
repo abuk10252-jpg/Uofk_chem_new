@@ -71,8 +71,11 @@
     },
 
     "extra": {
-      "API_URL": "https://server-naav.onrender.com/api",
-      "router": {}
+  "API_URL": "https://server-naav.onrender.com/api",
+  "router": {},
+  "eas": {
+    "projectId": "e1a8da00-47b6-421d-8aae-ef441407e90e"
+  }
     }
   }
 }
