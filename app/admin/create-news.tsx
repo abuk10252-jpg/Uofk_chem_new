@@ -9,11 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
-import { apiCall } from '../../src/utils/api';
-import { getFirebaseStorage } from '../../src/firebase';
+import { apiCall, uploadFile } from '../../src/utils/api';
 
 interface QuizQ {
   question: string;
@@ -184,16 +182,15 @@ export default function CreateNewsScreen() {
     if (!attachment) return null;
     setUploading(true);
     try {
-      const storage = getFirebaseStorage();
-      const response = await fetch(attachment.uri);
-      const blob = await response.blob();
-      const path = `news_attachments/${Date.now()}_${attachment.name}`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, blob, {
-        contentType: attachment.mimeType || 'application/octet-stream',
-      });
-      const url = await getDownloadURL(storageRef);
-      return url;
+      const formData = new FormData();
+      formData.append('file', {
+        uri: attachment.uri,
+        name: attachment.name,
+        type: attachment.mimeType || 'application/octet-stream',
+      } as any);
+
+      const data = await uploadFile('/news/upload-attachment', formData);
+      return data?.url || null;
     } catch (e: any) {
       console.warn('Upload failed:', e);
       Alert.alert(isArabic ? 'خطأ' : 'Error', isArabic ? 'فشل رفع المرفق' : 'Failed to upload attachment');

@@ -7,9 +7,9 @@ import {
   sendPasswordResetEmail,
   Auth,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, Firestore } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from '../firebase';
+import { doc, getDoc, setDoc, Firestore } from 'firebase/firestore';
+import { getFirebaseAuth, getFirebaseDb } from '../firebase';
+import { uploadFile } from '../utils/api';
 
 type UserRole = 'student' | 'admin' | 'super_admin' | null;
 type UserStatus = 'pending' | 'approved' | 'rejected' | null;
@@ -244,27 +244,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // رفع صورة البروفايل: بترفع الصورة على Firebase Storage، تحفظ رابطها في
-  // Firestore (نفس حقل profile_pic اللي الباك إند بيستخدمه)، وتحدّث الحالة محليًا
+  // رفع صورة البروفايل: بترفع الصورة للباك إند، والباك إند يرفعها على
+  // Cloudflare R2 ويحفظ الرابط في Firestore (حقل profile_pic)، وبنحدّث الحالة محليًا
   const updatePhoto = async (uri: string) => {
     try {
-      if (!auth?.currentUser || !db) {
+      if (!auth?.currentUser) {
         return { success: false, message: 'خدمة المصادقة غير متاحة حالياً' };
       }
 
-      const storage = getFirebaseStorage();
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const formData = new FormData();
+      formData.append('photo', {
+        uri,
+        name: 'avatar.jpg',
+        type: 'image/jpeg',
+      } as any);
 
-      const fileRef = storageRef(storage, `avatars/${auth.currentUser.uid}.jpg`);
-      await uploadBytes(fileRef, blob);
-      const downloadUrl = await getDownloadURL(fileRef);
+      const data = await uploadFile('/auth/upload-photo', formData);
 
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-        profile_pic: downloadUrl,
-      });
+      if (!data?.profile_pic) {
+        return { success: false, message: 'فشل رفع الصورة' };
+      }
 
-      setUser(prev => (prev ? { ...prev, profile_pic: downloadUrl } : prev));
+      setUser(prev => (prev ? { ...prev, profile_pic: data.profile_pic } : prev));
 
       return { success: true, message: 'تم تحديث الصورة بنجاح' };
     } catch (error) {
