@@ -56,6 +56,13 @@
     {
       "microphonePermission": "التطبيق محتاج الوصول للميكروفون عشان تسجل رسالة صوتية."
     }
+  ],
+  [
+    "expo-notifications",
+    {
+      "icon": "./assets/images/icon.png",
+      "color": "#002147"
+    }
   ]
     ],
 

@@ -2,6 +2,9 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+import { apiPost } from '../utils/api';
+import { useAuth } from './AuthContext';
 
 // إعداد كيفية ظهور الإشعارات
 try {
@@ -33,6 +36,7 @@ const NotificationContext = createContext<NotificationContextType>({
 });
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -65,6 +69,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     };
   }, []);
+
+  // لما التوكن يتجهز واليوزر يكون مسجل دخول، نبعت التوكن للباك إند
+  // عشان يقدر يبعت لينا إشعارات فعلية على الجهاز
+  useEffect(() => {
+    if (!expoPushToken || !user) return;
+    apiPost('/auth/push-token', { push_token: expoPushToken }).catch(err => {
+      console.warn('Failed to save push token:', err?.message || err);
+    });
+  }, [expoPushToken, user?.uid]);
 
   const clearUnreadCount = () => {
     setUnreadCount(0);
@@ -126,7 +139,20 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
       return null;
     }
 
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    // لازم يكون فيه EAS projectId متسجل في app.json (extra.eas.projectId)
+    // عشان Expo يقدر يطلع Push Token صحيح - لو مش موجود، شغّل "eas init" مرة واحدة
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+
+    if (!projectId) {
+      console.warn(
+        'EAS projectId مش موجود في app.json (extra.eas.projectId). شغّل "eas init" مرة واحدة عشان تسجله، وبعدين الإشعارات هتشتغل.'
+      );
+      return null;
+    }
+
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
     return token;
   } catch (error) {
     console.warn('Error getting push token:', error);
