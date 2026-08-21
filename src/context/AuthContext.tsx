@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Firestore } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseDb } from '../firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadFile } from '../utils/api';
 
 type UserRole = 'student' | 'admin' | 'super_admin' | null;
@@ -42,6 +43,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+const USER_CACHE_KEY = '@uofk_cached_user';
+
+async function saveUserCache(user: AuthUser | null) {
+  try {
+    if (user) {
+      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+    } else {
+      await AsyncStorage.removeItem(USER_CACHE_KEY);
+    }
+  } catch (e) {
+    console.warn('Failed to cache user:', e);
+  }
+}
+
+async function loadUserCache(): Promise<AuthUser | null> {
+  try {
+    const raw = await AsyncStorage.getItem(USER_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +83,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // حمّل الكاش فوراً عشان المستخدم ما يتطردش وهو بيفتح التطبيق
+    (async () => {
+      const cached = await loadUserCache();
+      if (cached) {
+        setUser(cached);
+      }
+    })();
+
     if (!auth) {
       setLoading(false);
       return;
@@ -65,38 +99,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser && db) {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userData: any = userDoc.data();
-            setUser({
-              id: firebaseUser.uid,
-              uid: firebaseUser.uid,
-              email: firebaseUser.email!,
-              role: userData.role || 'student',
-              status: userData.status || 'pending',
-              name: userData.name || userData.displayName,
-              displayName: userData.name || userData.displayName,
-              university_id: userData.university_id || userData.universityId,
-              universityId: userData.university_id || userData.universityId,
-              language: userData.language || 'ar',
-              profile_pic: userData.profile_pic || '',
-            });
-          } else {
-            setUser({
-              id: firebaseUser.uid,
-              uid: firebaseUser.uid,
-              email: firebaseUser.email!,
-              role: 'student',
-              status: 'pending',
-              language: 'ar',
-            });
+          try {
+            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+            if (userDoc.exists()) {
+              const userData: any = userDoc.data();
+              const mapped: AuthUser = {
+                id: firebaseUser.uid,
+                uid: firebaseUser.uid,
+                email: firebaseUser.email!,
+                role: userData.role || 'student',
+                status: userData.status || 'pending',
+                name: userData.name || userData.displayName,
+                displayName: userData.name || userData.displayName,
+                university_id: userData.university_id || userData.universityId,
+                universityId: userData.university_id || userData.universityId,
+                language: userData.language || 'ar',
+                profile_pic: userData.profile_pic || '',
+              };
+              setUser(mapped);
+              await saveUserCache(mapped);
+            } else {
+              const mapped: AuthUser = {
+                id: firebaseUser.uid,
+                uid: firebaseUser.uid,
+                email: firebaseUser.email!,
+                role: 'student',
+                status: 'pending',
+                language: 'ar',
+              };
+              setUser(mapped);
+              await saveUserCache(mapped);
+            }
+          } catch (firestoreError) {
+            // مفيش نت أو Firestore فشل → استخدم الكاش المحلي
+            console.warn('Firestore user fetch failed, using cache:', firestoreError);
+            const cached = await loadUserCache();
+            if (cached && cached.uid === firebaseUser.uid) {
+              setUser(cached);
+            } else {
+              // على الأقل خليه مسجل بنفس بيانات Firebase الأساسية
+              setUser({
+                id: firebaseUser.uid,
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                role: 'student',
+                status: 'approved',
+                language: 'ar',
+              });
+            }
           }
+        } else {
+          // firebaseUser = null
+          // مهم: لو أوفلاين ما نمسحتش الكاش، لأن Firebase ممكن يرجع null مؤقتاً قبل ما يستعيد الجلسة
+          try {
+            const NetInfo = require('@react-native-community/netinfo').default;
+            const net = await NetInfo.fetch();
+            const online = net.isConnected === true && net.isInternetReachable !== false;
+            if (online) {
+              // أونلاين وفعلاً مفيش مستخدم → خروج حقيقي
+              setUser(null);
+              await saveUserCache(null);
+            } else {
+              // أوفلاين → استخدم الكاش المحلي
+              const cached = await loadUserCache();
+              if (cached) {
+                setUser(cached);
+              } else {
+                setUser(null);
+              }
+            }
+          } catch {
+            const cached = await loadUserCache();
+            if (cached) {
+              setUser(cached);
+            } else {
+              setUser(null);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error in auth state handler:', error);
+        // محاولة أخيرة من الكاش عشان ما نخرجش المستخدم
+        const cached = await loadUserCache();
+        if (cached) {
+          setUser(cached);
         } else {
           setUser(null);
         }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -110,16 +199,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     if (email.trim().toLowerCase() === TEST_ADMIN_EMAIL && password === TEST_ADMIN_PASSWORD) {
-      setUser({
+      const testUser = {
         id: 'local-test-super-admin',
         uid: 'local-test-super-admin',
         email: TEST_ADMIN_EMAIL,
-        role: 'super_admin',
-        status: 'approved',
+        role: 'super_admin' as const,
+        status: 'approved' as const,
         name: 'حساب تجربة (سوبر أدمن)',
         displayName: 'حساب تجربة (سوبر أدمن)',
-        language: 'ar',
-      });
+        language: 'ar' as const,
+      };
+      setUser(testUser);
+      await saveUserCache(testUser);
       setLoading(false);
       return { success: true, message: 'دخول تجريبي كسوبر أدمن' };
     }
@@ -212,9 +303,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await signOut(auth);
       }
       setUser(null);
+      await saveUserCache(null);
       return { success: true, message: 'تم تسجيل الخروج بنجاح' };
     } catch (error) {
       setUser(null);
+      await saveUserCache(null);
       return { success: false, message: 'حدث خطأ في تسجيل الخروج' };
     }
   };
