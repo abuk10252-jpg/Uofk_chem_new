@@ -10,6 +10,7 @@ import { Colors } from '../../src/constants/colors';
 import { apiCall, apiDelete, uploadFile } from '../../src/utils/api';
 import * as DocumentPicker from 'expo-document-picker';
 import { confirmAction } from '../../src/utils/confirmAction';
+import { openFileOfflineAware, isFileCached, downloadAndCacheFile } from '../../src/utils/fileCache';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 
@@ -209,23 +210,9 @@ export default function CourseDetailScreen() {
   }
 
   async function handleDownload(item: FileItem) {
-    try {
-      const fileUrl = item.url || `${BASE_URL}/courses/${id}/files/${item.id}`;
-      const supported = await Linking.canOpenURL(fileUrl);
-      if (supported) {
-        await Linking.openURL(fileUrl);
-      } else {
-        Alert.alert(
-          isArabic ? 'خطأ' : 'Error',
-          isArabic ? 'لا يمكن فتح هذا الملف' : 'Cannot open this file'
-        );
-      }
-    } catch {
-      Alert.alert(
-        isArabic ? 'خطأ' : 'Error',
-        isArabic ? 'فشل تحميل الملف' : 'Download failed'
-      );
-    }
+    const fileUrl = item.url || `${BASE_URL}/courses/${id}/files/${item.id}`;
+    // يحمل الملف أول مرة (لو فيه نت) ويحفظه محلياً، وبعدين يفتحه أوفلاين
+    await openFileOfflineAware(item.id, fileUrl, item.name, isArabic);
   }
 
   function getFileIcon(type: string): string {

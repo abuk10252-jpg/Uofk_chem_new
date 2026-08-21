@@ -13,6 +13,9 @@ if (!BASE_URL) {
   console.warn("⚠️ WARNING: API_URL is missing");
 }
 
+// مفتاح التخزين المؤقت
+const CACHE_PREFIX = '@uofk_cache:';
+
 async function getFreshToken(): Promise<string | null> {
   try {
     const auth = getFirebaseAuth();
@@ -32,15 +35,64 @@ async function getFreshToken(): Promise<string | null> {
   }
 }
 
+/** حفظ نتيجة API في الكاش */
+async function saveToCache(endpoint: string, data: any) {
+  try {
+    const key = CACHE_PREFIX + endpoint;
+    await AsyncStorage.setItem(
+      key,
+      JSON.stringify({ data, savedAt: Date.now() })
+    );
+  } catch (e) {
+    console.warn('Cache save failed:', e);
+  }
+}
+
+/** قراءة من الكاش */
+async function readFromCache(endpoint: string): Promise<any | null> {
+  try {
+    const key = CACHE_PREFIX + endpoint;
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.data ?? null;
+  } catch (e) {
+    console.warn('Cache read failed:', e);
+    return null;
+  }
+}
+
+/**
+ * هل الطلب من نوع قراءة (GET)؟
+ * الطلبات اللي بنخزنها في الكاش عشان تشتغل أوفلاين.
+ */
+function isCacheableRequest(options: RequestInit = {}): boolean {
+  const method = (options.method || 'GET').toUpperCase();
+  return method === 'GET';
+}
+
 export async function apiCall(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
   const netInfo = await NetInfo.fetch();
-  if (!netInfo.isConnected || !netInfo.isInternetReachable) {
+  const isOnline =
+    netInfo.isConnected === true && netInfo.isInternetReachable !== false;
+
+  // ===== وضع أوفلاين =====
+  if (!isOnline) {
+    // لو الطلب قابل للكاش (GET) نحاول نجيب البيانات المحفوظة
+    if (isCacheableRequest(options)) {
+      const cached = await readFromCache(endpoint);
+      if (cached !== null) {
+        return cached;
+      }
+    }
+    // مفيش كاش أو الطلب مش GET
     throw new Error('لا يوجد اتصال بالإنترنت');
   }
 
+  // ===== وضع أونلاين =====
   const token = await getFreshToken();
   if (!token) {
     throw new Error('تعذر الحصول على جلسة تسجيل الدخول - سجل خروج وادخل تاني');
@@ -71,6 +123,15 @@ export async function apiCall(
     });
   } catch (fetchError: any) {
     clearTimeout(timeoutId);
+
+    // لو فشل الاتصال، نحاول نرجع من الكاش (للـ GET فقط)
+    if (isCacheableRequest(options)) {
+      const cached = await readFromCache(endpoint);
+      if (cached !== null) {
+        return cached;
+      }
+    }
+
     if (fetchError?.name === 'AbortError') {
       throw new Error('انتهت مهلة الاتصال - جرب تاني (ممكن السيرفر كان نايم، استنى شوية وحاول تاني)');
     }
@@ -91,11 +152,20 @@ export async function apiCall(
   }
 
   if (!text) return null;
+
+  let data: any = null;
   try {
-    return JSON.parse(text);
+    data = JSON.parse(text);
   } catch {
     return null;
   }
+
+  // نحفظ في الكاش لو الطلب GET وناجح
+  if (isCacheableRequest(options) && data !== null) {
+    await saveToCache(endpoint, data);
+  }
+
+  return data;
 }
 
 export async function apiGet(endpoint: string) {
