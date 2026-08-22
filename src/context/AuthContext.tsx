@@ -16,16 +16,15 @@ type UserRole = 'student' | 'admin' | 'super_admin' | null;
 type UserStatus = 'pending' | 'approved' | 'rejected' | null;
 
 interface AuthUser {
-  // الحقول دي هي نفسها اللي كل شاشات التطبيق والباك إند بيتوقعوها
   id: string;
-  uid: string; // نفس id، متسيبة للتوافق مع أي كود قديم بيستخدمها
+  uid: string;
   email: string;
   role: UserRole;
   status: UserStatus;
   name?: string;
-  displayName?: string; // نفس name، متسيبة للتوافق مع أي كود قديم بيستخدمها
+  displayName?: string;
   university_id?: string;
-  universityId?: string; // نفس university_id، متسيبة للتوافق
+  universityId?: string;
   language?: 'ar' | 'en';
   profile_pic?: string;
 }
@@ -65,8 +64,6 @@ async function loadUserCache(): Promise<AuthUser | null> {
     return null;
   }
 }
-
-
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -137,7 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (cached && cached.uid === firebaseUser.uid) {
               setUser(cached);
             } else {
-              // على الأقل خليه مسجل بنفس بيانات Firebase الأساسية
               setUser({
                 id: firebaseUser.uid,
                 uid: firebaseUser.uid,
@@ -148,38 +144,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             }
           }
-        } else {
-          // firebaseUser = null
-          // مهم: لو أوفلاين ما نمسحتش الكاش، لأن Firebase ممكن يرجع null مؤقتاً قبل ما يستعيد الجلسة
-          try {
-            const NetInfo = require('@react-native-community/netinfo').default;
-            const net = await NetInfo.fetch();
-            const online = net.isConnected === true && net.isInternetReachable !== false;
-            if (online) {
-              // أونلاين وفعلاً مفيش مستخدم → خروج حقيقي
-              setUser(null);
-              await saveUserCache(null);
-            } else {
-              // أوفلاين → استخدم الكاش المحلي
-              const cached = await loadUserCache();
-              if (cached) {
-                setUser(cached);
-              } else {
-                setUser(null);
-              }
-            }
-          } catch {
-            const cached = await loadUserCache();
-            if (cached) {
-              setUser(cached);
-            } else {
-              setUser(null);
-            }
+        } else if (firebaseUser) {
+          const cached = await loadUserCache();
+          if (cached && cached.uid === firebaseUser.uid) {
+            setUser(cached);
+          } else {
+            setUser({
+              id: firebaseUser.uid,
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              role: 'student',
+              status: 'approved',
+              language: 'ar',
+            });
           }
+        } else {
+          setUser(null);
+          await saveUserCache(null);
         }
       } catch (error) {
         console.error('Error in auth state handler:', error);
-        // محاولة أخيرة من الكاش عشان ما نخرجش المستخدم
         const cached = await loadUserCache();
         if (cached) {
           setUser(cached);
@@ -199,15 +183,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     if (email.trim().toLowerCase() === TEST_ADMIN_EMAIL && password === TEST_ADMIN_PASSWORD) {
-      const testUser = {
+      const testUser: AuthUser = {
         id: 'local-test-super-admin',
         uid: 'local-test-super-admin',
         email: TEST_ADMIN_EMAIL,
-        role: 'super_admin' as const,
-        status: 'approved' as const,
+        role: 'super_admin',
+        status: 'approved',
         name: 'حساب تجربة (سوبر أدمن)',
         displayName: 'حساب تجربة (سوبر أدمن)',
-        language: 'ar' as const,
+        language: 'ar',
       };
       setUser(testUser);
       await saveUserCache(testUser);
@@ -318,7 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
         const userData: any = userDoc.data();
-        setUser({
+        const mapped: AuthUser = {
           id: auth.currentUser.uid,
           uid: auth.currentUser.uid,
           email: auth.currentUser.email!,
@@ -330,15 +314,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           universityId: userData.university_id || userData.universityId,
           language: userData.language || 'ar',
           profile_pic: userData.profile_pic || '',
-        });
+        };
+        setUser(mapped);
+        await saveUserCache(mapped);
       }
     } catch (error) {
       console.warn('Error refreshing user:', error);
     }
   };
 
-  // رفع صورة البروفايل: بترفع الصورة للباك إند، والباك إند يرفعها على
-  // Cloudflare R2 ويحفظ الرابط في Firestore (حقل profile_pic)، وبنحدّث الحالة محليًا
   const updatePhoto = async (uri: string) => {
     try {
       if (!auth?.currentUser) {
@@ -358,7 +342,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: 'فشل رفع الصورة' };
       }
 
-      setUser(prev => (prev ? { ...prev, profile_pic: data.profile_pic } : prev));
+      setUser(prev => {
+        const next = prev ? { ...prev, profile_pic: data.profile_pic } : prev;
+        if (next) saveUserCache(next);
+        return next;
+      });
 
       return { success: true, message: 'تم تحديث الصورة بنجاح' };
     } catch (error) {
