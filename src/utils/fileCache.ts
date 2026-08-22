@@ -1,11 +1,41 @@
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Linking, Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as Sharing from 'expo-sharing';
 
 const INDEX_KEY = '@uofk_file_cache_index';
 const CACHE_DIR = FileSystem.documentDirectory + 'uofk_files/';
 
 type CacheIndex = Record<string, { localUri: string; name: string; savedAt: number }>;
+
+// نوع الملف (MIME) عشان نقدر نقول لنظام التشغيل يفتحه بأي قارئ افتراضي مثبت
+const MIME_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  zip: 'application/zip',
+  rar: 'application/x-rar-compressed',
+};
+
+function getMimeType(fileName: string): string {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  return MIME_TYPES[ext] || 'application/octet-stream';
+}
 
 async function ensureDir() {
   const info = await FileSystem.getInfoAsync(CACHE_DIR);
@@ -83,6 +113,37 @@ export async function downloadAndCacheFile(
 }
 
 /**
+ * يفتح ملف محلي بقارئ المستندات الافتراضي بتاع الجهاز:
+ * - أندرويد: بيحوّل المسار لـ content:// (عبر FileProvider) ويبعت Intent.ACTION_VIEW
+ *   عشان يفتح مباشرة في التطبيق المثبت لنوع الملف ده (قارئ PDF، الصور، إلخ)
+ * - iOS: بيفتح شيت المشاركة/المعاينة بتاع النظام (مفيش طريقة تانية في تطبيقات Expo
+ *   المُدارة تفتح مباشرة "بقارئ افتراضي" زي أندرويد، فده أقرب سلوك متاح)
+ */
+async function openWithNativeViewer(localUri: string, fileName: string, isArabic: boolean) {
+  const mimeType = getMimeType(fileName);
+
+  if (Platform.OS === 'android') {
+    const contentUri = await FileSystem.getContentUriAsync(localUri);
+    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+      data: contentUri,
+      flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+      type: mimeType,
+    });
+    return;
+  }
+
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(localUri, { mimeType, dialogTitle: fileName });
+  } else {
+    Alert.alert(
+      isArabic ? 'خطأ' : 'Error',
+      isArabic ? 'لا يمكن فتح هذا الملف على الجهاز' : 'Cannot open this file on device'
+    );
+  }
+}
+
+/**
  * يفتح الملف:
  * - لو موجود محلياً → يفتحه من الجهاز (أوفلاين)
  * - لو مش موجود وفيه نت → يحمله بعدين يفتحه
@@ -98,38 +159,13 @@ export async function openFileOfflineAware(
     // 1) جرب المحلي أولاً
     let localUri = await getLocalFileUri(fileId);
 
-    // 2) لو مش موجود، حاول التحميل (محتاج نت)
+    // 2) لو مش موجود، حمّله (محتاج نت)
     if (!localUri) {
-      try {
-        localUri = await downloadAndCacheFile(fileId, remoteUrl, fileName);
-      } catch (e) {
-        // فشل التحميل → جرب فتح الرابط مباشرة كحل أخير
-        const canOpen = await Linking.canOpenURL(remoteUrl);
-        if (canOpen) {
-          await Linking.openURL(remoteUrl);
-          return;
-        }
-        throw e;
-      }
+      localUri = await downloadAndCacheFile(fileId, remoteUrl, fileName);
     }
 
-    // 3) افتح الملف المحلي
-    const canOpen = await Linking.canOpenURL(localUri);
-    if (canOpen) {
-      await Linking.openURL(localUri);
-    } else {
-      // بعض الأجهزة مابتدعمش file:// مباشرة
-      // نفتح الرابط الأونلاين كبديل
-      const canOpenRemote = await Linking.canOpenURL(remoteUrl);
-      if (canOpenRemote) {
-        await Linking.openURL(remoteUrl);
-      } else {
-        Alert.alert(
-          isArabic ? 'خطأ' : 'Error',
-          isArabic ? 'لا يمكن فتح هذا الملف على الجهاز' : 'Cannot open this file on device'
-        );
-      }
-    }
+    // 3) افتحه بقارئ المستندات الافتراضي بتاع الجهاز
+    await openWithNativeViewer(localUri, fileName, isArabic);
   } catch (e: any) {
     Alert.alert(
       isArabic ? 'خطأ' : 'Error',

@@ -52,6 +52,10 @@ export default function CourseDetailScreen() {
   const [autoOpenedFile, setAutoOpenedFile] = useState(false);
   // الفولدر المفتوح حالياً - null يعني إحنا في قائمة الفولدرات مش جوه واحد منهم
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  // الملفات اللي بتتحمل دلوقيت (بنوريها دائرة تحميل) والملفات المحفوظة أوفلاين
+  // (بنوريها زرار "فتح" بدل "تنزيل")
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [cachedIds, setCachedIds] = useState<Set<string>>(new Set());
 
   // الفولدرات الافتراضية
   const DEFAULT_FOLDERS = [
@@ -90,6 +94,23 @@ export default function CourseDetailScreen() {
   useEffect(() => {
     fetchCourse();
   }, [id]);
+
+  // بمجرد ما الملفات تحمل، بنفحص أي منها موجود أصلاً محفوظ على الجهاز
+  // عشان نوريه بزرار "فتح" بدل "تنزيل" على طول
+  useEffect(() => {
+    if (!files.length) return;
+    let cancelled = false;
+    (async () => {
+      const cachedNow = new Set<string>();
+      await Promise.all(
+        files.map(async f => {
+          if (await isFileCached(f.id)) cachedNow.add(f.id);
+        })
+      );
+      if (!cancelled) setCachedIds(cachedNow);
+    })();
+    return () => { cancelled = true; };
+  }, [files]);
 
   // فتح الملف تلقائي لو جينا من إشعار (openFile في الرابط) بمجرد ما الملفات تحمل
   useEffect(() => {
@@ -211,8 +232,23 @@ export default function CourseDetailScreen() {
 
   async function handleDownload(item: FileItem) {
     const fileUrl = item.url || `${BASE_URL}/courses/${id}/files/${item.id}`;
-    // يحمل الملف أول مرة (لو فيه نت) ويحفظه محلياً، وبعدين يفتحه أوفلاين
-    await openFileOfflineAware(item.id, fileUrl, item.name, isArabic);
+    // لو الملف محفوظ أصلاً، افتحه على طول من غير دائرة تحميل
+    if (cachedIds.has(item.id)) {
+      await openFileOfflineAware(item.id, fileUrl, item.name, isArabic);
+      return;
+    }
+    // غير كده: وري دائرة التحميل لحد ما ينزل الملف ويتفتح، وبعدين بدّل الزرار لـ "فتح"
+    setDownloadingIds(prev => new Set(prev).add(item.id));
+    try {
+      await openFileOfflineAware(item.id, fileUrl, item.name, isArabic);
+      setCachedIds(prev => new Set(prev).add(item.id));
+    } finally {
+      setDownloadingIds(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
   }
 
   function getFileIcon(type: string): string {
@@ -283,8 +319,15 @@ export default function CourseDetailScreen() {
             testID={`download-file-${item.id}`}
             style={styles.dlBtn}
             onPress={() => handleDownload(item)}
+            disabled={downloadingIds.has(item.id)}
           >
-            <Ionicons name="download-outline" size={20} color={Colors.accent} />
+            {downloadingIds.has(item.id) ? (
+              <ActivityIndicator size="small" color={Colors.accent} />
+            ) : cachedIds.has(item.id) ? (
+              <Ionicons name="open-outline" size={20} color={Colors.accent} />
+            ) : (
+              <Ionicons name="download-outline" size={20} color={Colors.accent} />
+            )}
           </TouchableOpacity>
 
           {isAdmin && (
