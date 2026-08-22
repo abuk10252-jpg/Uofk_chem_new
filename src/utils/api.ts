@@ -20,7 +20,10 @@ async function getFreshToken(): Promise<string | null> {
   try {
     const auth = getFirebaseAuth();
     if (auth.currentUser) {
-      const token = await auth.currentUser.getIdToken(true);
+      // من غير "force refresh" - فايربيز بيرجّع التوكن المحفوظ فورًا لو لسه صالح،
+      // وما بيعمل طلب شبكة لسيرفرات جوجل إلا لو فعلاً قرب ينتهي. الفرق بينهم
+      // كان بيضيف تأخير شبكة إضافي على *كل* طلب API في التطبيق.
+      const token = await auth.currentUser.getIdToken(false);
       await AsyncStorage.setItem("token", token);
       return token;
     }
@@ -170,6 +173,39 @@ export async function apiCall(
 
 export async function apiGet(endpoint: string) {
   return apiCall(endpoint, { method: 'GET' });
+}
+
+/**
+ * نسخة "اعرض القديم وحدّثه بره" من apiGet:
+ * - لو فيه بيانات محفوظة في الكاش، بترجعها فورًا (من غير ما تستنى النت خالص)
+ *   عشان الشاشة تتعمر على طول بدل ما تفضل فاضية وهي بتحمّل.
+ * - في نفس الوقت بتعمل طلب فعلي في الخلفية، ولو رجع بنتيجة أحدث بتنادي onFresh بيها.
+ * لو مفيش كاش، بترجع فورًا نتيجة apiGet العادية (يعني بتستنى النت زي أول مرة).
+ */
+export async function apiGetSWR(
+  endpoint: string,
+  onFresh?: (data: any) => void
+): Promise<any> {
+  const cached = await readFromCache(endpoint);
+
+  const freshPromise = apiCall(endpoint, { method: 'GET' })
+    .then(data => {
+      if (onFresh) onFresh(data);
+      return data;
+    })
+    .catch(err => {
+      // لو الطلب في الخلفية فشل ومعانا كاش أصلاً، منسكتش عليه بس ما نكسرش الشاشة
+      if (cached === null) throw err;
+      return cached;
+    });
+
+  if (cached !== null) {
+    // منرجع الكاش فورًا للعرض، والتحديث الفعلي ماشي في الخلفية ومش هنستناه هنا
+    freshPromise.catch(() => {});
+    return cached;
+  }
+
+  return freshPromise;
 }
 
 export async function apiPost(endpoint: string, body: any) {

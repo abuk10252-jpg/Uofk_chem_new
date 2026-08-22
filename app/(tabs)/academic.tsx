@@ -61,19 +61,24 @@ export default function AcademicTab() {
   const [creating, setCreating] = useState(false);
 
   const fetchCourses = useCallback(async () => {
+    // 1) نعرض النسخة المحفوظة فورًا (لو موجودة) عشان الشاشة ما تفضلش فاضية وهي بتحمّل
+    try {
+      const cached = await AsyncStorage.getItem('courses');
+      if (cached) {
+        setCourses(JSON.parse(cached));
+        setLoading(false);
+      }
+    } catch {}
+
+    // 2) نجيب النسخة الحديثة من السيرفر في الخلفية ونحدّث بيها
     try {
       const data = await apiCall('/courses/');
       if (data?.courses) {
         setCourses(data.courses);
         await AsyncStorage.setItem('courses', JSON.stringify(data.courses));
-      } else {
-        // تحميل من الكاش لو السيرفر فشل
-        const cached = await AsyncStorage.getItem('courses');
-        if (cached) setCourses(JSON.parse(cached));
       }
     } catch (e) {
-      const cached = await AsyncStorage.getItem('courses');
-      if (cached) setCourses(JSON.parse(cached));
+      // فشل التحديث - المستخدم شايف النسخة المحفوظة أصلاً من فوق، فمفيش داعي نمسحها
     } finally {
       setLoading(false);
       setRefreshing(false);
