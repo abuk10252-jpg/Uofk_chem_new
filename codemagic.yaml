@@ -12,6 +12,12 @@ workflows:
       branch_patterns:
         - pattern: main
     scripts:
+      - name: Clean caches
+        script: |
+          npm cache clean --force
+          rm -rf node_modules
+          rm -rf .expo
+          rm -rf node_modules/.cache
       - name: Install dependencies
         script: |
           npm install
@@ -24,6 +30,6 @@ workflows:
       - name: Build APK
         script: |
           eas init --non-interactive --force
-          eas build --platform android --profile preview --non-interactive
+          eas build --platform android --profile preview --non-interactive --clear-cache
     artifacts:
       - build/**/*.apk
