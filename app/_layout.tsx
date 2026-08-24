@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
+import { ThemeProvider } from '../src/context/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
@@ -145,22 +146,23 @@ function RootLayoutNav() {
   }, [user, effectivelyLoading, fontLoaded, segments, minTimeElapsed]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', animationDuration: 220 }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" options={{ title: 'تسجيل الدخول' }} />
       <Stack.Screen name="register" options={{ title: 'إنشاء حساب' }} />
       <Stack.Screen name="pending" options={{ title: 'قيد المراجعة' }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: 'fade' }} />
       <Stack.Screen name="admin/index" options={{ title: 'لوحة التحكم' }} />
-      <Stack.Screen name="admin/create-course" options={{ title: 'إضافة مقرر' }} />
-      <Stack.Screen name="admin/create-news" options={{ title: 'إضافة خبر' }} />
+      <Stack.Screen name="admin/create-course" options={{ title: 'إضافة مقرر', presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="admin/create-news" options={{ title: 'إضافة خبر', presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="admin/users" options={{ title: 'إدارة المستخدمين' }} />
       <Stack.Screen name="admin/quiz-results" options={{ title: 'نتائج الاختبارات' }} />
+      <Stack.Screen name="admin-chat/index" options={{ title: 'قناة الأدمنز', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="super-admin/index" options={{ title: 'المشرف العام' }} />
       <Stack.Screen name="super-admin/manage-roles" options={{ title: 'إدارة الصلاحيات' }} />
       <Stack.Screen name="super-admin/settings" options={{ title: 'الإعدادات' }} />
       <Stack.Screen name="course/[id]" options={{ title: 'المقرر' }} />
-      <Stack.Screen name="notifications/index" options={{ title: 'الإشعارات' }} />
+      <Stack.Screen name="notifications/index" options={{ title: 'الإشعارات', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="+html" options={{ headerShown: false }} />
     </Stack>
   );
@@ -172,8 +174,10 @@ export default function RootLayout() {
       <GlobalCrashCatcher>
         <AuthProvider>
           <NotificationProvider>
-            <StatusBar style="auto" />
-            <RootLayoutNav />
+            <ThemeProvider>
+              <StatusBar style="auto" />
+              <RootLayoutNav />
+            </ThemeProvider>
           </NotificationProvider>
         </AuthProvider>
       </GlobalCrashCatcher>

@@ -16,6 +16,8 @@ export default function TabLayout() {
         headerStyle: { backgroundColor: Colors.primary },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700', fontSize: 18 },
+        // ترانزيشن سلس بين التابات بدل التبديل المفاجئ
+        animation: 'shift',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,

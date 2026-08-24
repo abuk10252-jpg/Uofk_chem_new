@@ -6,13 +6,16 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
 import { Colors } from '../../src/constants/colors';
+import AnimatedPressable from '../../src/components/AnimatedPressable';
 import { apiCall } from '../../src/utils/api';
 import { confirmAction } from '../../src/utils/confirmAction';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileTab() {
   const { user, logout, updatePhoto } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const lang = user?.language || 'en';
   const isArabic = lang === 'ar';
@@ -180,8 +183,19 @@ export default function ProfileTab() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
-      {/* زر الإشعارات */}
-      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 }}>
+      {/* زر الوضع الليلي وزر الإشعارات */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <AnimatedPressable
+          onPress={toggleTheme}
+          style={styles.themeToggleBtn}
+        >
+          <Ionicons
+            name={theme === 'dark' ? 'sunny-outline' : 'moon-outline'}
+            size={20}
+            color={Colors.accent}
+          />
+        </AnimatedPressable>
+
         <TouchableOpacity
           onPress={() => setShowNotifs(!showNotifs)}
           style={{ position: 'relative' }}
@@ -369,6 +383,17 @@ export default function ProfileTab() {
             <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={styles.adminLink}
+            onPress={() => router.push('/admin-chat')}
+          >
+            <Ionicons name="chatbubbles-outline" size={20} color={Colors.primary} />
+            <Text style={styles.adminLinkText}>
+              {isArabic ? 'قناة الأدمنز' : 'Admin Channel'}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
+          </TouchableOpacity>
+
           {user?.role === 'super_admin' && (
             <TouchableOpacity
               style={styles.adminLink}
@@ -398,8 +423,13 @@ export default function ProfileTab() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8F8' },
+  container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: 16 },
+  themeToggleBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
   notifDot: {
     width: 10, height: 10, borderRadius: 5,
     backgroundColor: 'red', position: 'absolute', top: 0, right: 0,
