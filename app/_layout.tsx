@@ -158,6 +158,7 @@ function RootLayoutNav() {
       <Stack.Screen name="admin/users" options={{ title: 'إدارة المستخدمين' }} />
       <Stack.Screen name="admin/quiz-results" options={{ title: 'نتائج الاختبارات' }} />
       <Stack.Screen name="admin-chat/index" options={{ title: 'قناة الأدمنز', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="admin-chat/info" options={{ title: 'معلومات القناة' }} />
       <Stack.Screen name="super-admin/index" options={{ title: 'المشرف العام' }} />
       <Stack.Screen name="super-admin/manage-roles" options={{ title: 'إدارة الصلاحيات' }} />
       <Stack.Screen name="super-admin/settings" options={{ title: 'الإعدادات' }} />
