@@ -17,7 +17,8 @@
         "backgroundColor": "#002147"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.abuk10252.uofkchem"
+      "package": "com.abuk10252.uofkchem",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -71,7 +72,8 @@
       "eas": {
         "projectId": "e1a8da00-47b6-421d-8aae-ef441407e90e"
       },
-      "EXPO_PUBLIC_API_URL": "https://server-3xn9.onrender.com/api"
+      "EXPO_PUBLIC_API_URL": "https://server-3xn9.onrender.com/api",
+      "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-server.onrender.com/api"
     }
   }
 }
