@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useNotifications } from '../../src/context/NotificationContext';
 import { Colors } from '../../src/constants/colors';
 import AnimatedPressable from '../../src/components/AnimatedPressable';
 import { apiCall } from '../../src/utils/api';
@@ -16,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 export default function ProfileTab() {
   const { user, logout, updatePhoto } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { expoPushToken, lastError, refreshPushToken } = useNotifications();
   const router = useRouter();
   const lang = user?.language || 'en';
   const isArabic = lang === 'ar';
@@ -408,6 +410,49 @@ export default function ProfileTab() {
           )}
         </View>
       )}
+
+      {/* تفعيل الإشعارات */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>
+          {isArabic ? 'الإشعارات' : 'Notifications'}
+        </Text>
+        <TouchableOpacity
+          style={styles.adminLink}
+          onPress={async () => {
+            const res = await refreshPushToken();
+            if (res.ok) {
+              Alert.alert(
+                isArabic ? 'تم' : 'OK',
+                isArabic
+                  ? 'تم تسجيل الجهاز للإشعارات بنجاح'
+                  : 'Device registered for notifications'
+              );
+            } else {
+              Alert.alert(
+                isArabic ? 'فشل' : 'Failed',
+                res.error || lastError || (isArabic ? 'تعذر تفعيل الإشعارات' : 'Could not enable notifications')
+              );
+            }
+          }}
+        >
+          <Ionicons
+            name={expoPushToken ? 'notifications' : 'notifications-outline'}
+            size={20}
+            color={expoPushToken ? Colors.success : Colors.primary}
+          />
+          <Text style={styles.adminLinkText}>
+            {expoPushToken
+              ? (isArabic ? 'الإشعارات مفعّلة — اضغط لإعادة التسجيل' : 'Notifications on — tap to re-register')
+              : (isArabic ? 'تفعيل إشعارات الجهاز' : 'Enable device notifications')}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
+        </TouchableOpacity>
+        {!!lastError && (
+          <Text style={{ color: Colors.error, fontSize: 12, marginTop: 6 }}>
+            {lastError}
+          </Text>
+        )}
+      </View>
 
       {/* زر تسجيل الخروج */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>

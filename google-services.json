@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "647909218035",
+    "firebase_url": "https://uofk-chem-default-rtdb.firebaseio.com",
+    "project_id": "uofk-chem",
+    "storage_bucket": "uofk-chem.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:647909218035:android:1ea27e42b08ff81fb44986",
+        "android_client_info": {
+          "package_name": "com.abuk10252.uofkchem"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3282l7S2RJgNUPJhIykZ1STp3Er6cfmU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

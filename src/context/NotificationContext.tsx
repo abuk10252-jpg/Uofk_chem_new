@@ -8,7 +8,6 @@ import { apiPost } from '../utils/api';
 import { getFirebaseDb } from '../firebase';
 import { useAuth } from './AuthContext';
 
-// إعداد كيفية ظهور الإشعارات
 try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -25,18 +24,20 @@ interface NotificationContextType {
   expoPushToken: string | null;
   notification: Notifications.Notification | null;
   unreadCount: number;
+  lastError: string | null;
   clearUnreadCount: () => void;
   sendLocalNotification: (title: string, body: string, data?: any) => Promise<void>;
-  refreshPushToken: () => Promise<void>;
+  refreshPushToken: () => Promise<{ ok: boolean; token?: string; error?: string }>;
 }
 
 const NotificationContext = createContext<NotificationContextType>({
   expoPushToken: null,
   notification: null,
   unreadCount: 0,
+  lastError: null,
   clearUnreadCount: () => {},
   sendLocalNotification: async () => {},
-  refreshPushToken: async () => {},
+  refreshPushToken: async () => ({ ok: false }),
 });
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
@@ -44,15 +45,24 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const lastSavedTokenRef = useRef<string | null>(null);
   const savingRef = useRef(false);
 
   useEffect(() => {
-    registerForPushNotificationsAsync().then(token => {
-      if (token) setExpoPushToken(token);
-    });
+    // تأخير بسيط عشان الصلاحيات والـ auth يجهزوا
+    const t = setTimeout(() => {
+      registerForPushNotificationsAsync().then(result => {
+        if (result.token) {
+          setExpoPushToken(result.token);
+          setLastError(null);
+        } else if (result.error) {
+          setLastError(result.error);
+        }
+      });
+    }, 800);
 
     notificationListener.current = Notifications.addNotificationReceivedListener(n => {
       setNotification(n);
@@ -65,13 +75,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const appStateSub = AppState.addEventListener('change', state => {
       if (state === 'active') {
-        registerForPushNotificationsAsync().then(token => {
-          if (token) setExpoPushToken(token);
+        registerForPushNotificationsAsync().then(result => {
+          if (result.token) {
+            setExpoPushToken(result.token);
+            setLastError(null);
+          }
         });
       }
     });
 
     return () => {
+      clearTimeout(t);
       if (notificationListener.current) {
         Notifications.removeNotificationSubscription(notificationListener.current);
       }
@@ -82,19 +96,30 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  // حفظ التوكن في Firestore مباشرة + عبر الـ API
+  // لما اليوزر أو التوكن يتغير — احفظ (مع إعادة محاولة)
   useEffect(() => {
     if (!expoPushToken || !user?.uid) return;
     if (user.uid === 'local-test-super-admin') return;
     if (lastSavedTokenRef.current === expoPushToken) return;
 
-    savePushToken(user.uid, expoPushToken)
-      .then(ok => {
-        if (ok) lastSavedTokenRef.current = expoPushToken;
-      })
-      .catch(err => {
-        console.warn('Failed to save push token:', err?.message || err);
-      });
+    let cancelled = false;
+    (async () => {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        if (cancelled) return;
+        const ok = await savePushToken(user.uid, expoPushToken);
+        if (ok) {
+          lastSavedTokenRef.current = expoPushToken;
+          setLastError(null);
+          return;
+        }
+        await new Promise(r => setTimeout(r, attempt * 1500));
+      }
+      setLastError('فشل حفظ توكن الإشعارات بعد عدة محاولات');
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [expoPushToken, user?.uid]);
 
   async function savePushToken(uid: string, token: string): Promise<boolean> {
@@ -102,7 +127,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     savingRef.current = true;
     let ok = false;
 
-    // 1) حفظ مباشر في Firestore (ما يعتمد على السيرفر)
     try {
       const db = getFirebaseDb();
       await setDoc(
@@ -118,15 +142,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       ok = true;
     } catch (e: any) {
       console.warn('❌ Firestore push_token save failed:', e?.message || e);
+      setLastError('Firestore: ' + (e?.message || String(e)));
     }
 
-    // 2) عبر الـ API كنسخة احتياطية
     try {
       await apiPost('/auth/push-token', { push_token: token });
       console.log('✅ push_token saved via API');
       ok = true;
     } catch (e: any) {
       console.warn('❌ API push_token save failed:', e?.message || e);
+      if (!ok) setLastError('API: ' + (e?.message || String(e)));
     }
 
     savingRef.current = false;
@@ -134,25 +159,27 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }
 
   const refreshPushToken = async () => {
-    const token = await registerForPushNotificationsAsync();
-    if (token) {
-      setExpoPushToken(token);
-      lastSavedTokenRef.current = null;
+    lastSavedTokenRef.current = null;
+    const result = await registerForPushNotificationsAsync();
+    if (result.token) {
+      setExpoPushToken(result.token);
+      setLastError(null);
+      if (user?.uid && user.uid !== 'local-test-super-admin') {
+        const ok = await savePushToken(user.uid, result.token);
+        if (ok) lastSavedTokenRef.current = result.token;
+        return { ok, token: result.token, error: ok ? undefined : lastError || 'فشل الحفظ' };
+      }
+      return { ok: true, token: result.token };
     }
+    setLastError(result.error || 'فشل الحصول على التوكن');
+    return { ok: false, error: result.error || 'فشل الحصول على التوكن' };
   };
 
-  const clearUnreadCount = () => {
-    setUnreadCount(0);
-  };
+  const clearUnreadCount = () => setUnreadCount(0);
 
   const sendLocalNotification = async (title: string, body: string, data?: any) => {
     await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: data || {},
-        sound: true,
-      },
+      content: { title, body, data: data || {}, sound: true },
       trigger: null,
     });
   };
@@ -163,6 +190,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         expoPushToken,
         notification,
         unreadCount,
+        lastError,
         clearUnreadCount,
         sendLocalNotification,
         refreshPushToken,
@@ -172,11 +200,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 }
 
-async function registerForPushNotificationsAsync(): Promise<string | null> {
+async function registerForPushNotificationsAsync(): Promise<{ token?: string; error?: string }> {
   try {
     if (!Device.isDevice) {
-      console.log('Must use physical device for Push Notifications');
-      return null;
+      return { error: 'الإشعارات تحتاج جهاز حقيقي (مش محاكي)' };
     }
 
     if (Platform.OS === 'android') {
@@ -197,15 +224,12 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-
     if (finalStatus !== 'granted') {
-      console.warn('Push permission not granted:', finalStatus);
-      return null;
+      return { error: 'إذن الإشعارات مرفوض - فعّله من إعدادات التلفون' };
     }
 
     const projectId =
@@ -213,23 +237,28 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
       Constants.easConfig?.projectId;
 
     if (!projectId) {
-      console.warn(
-        'EAS projectId مش موجود في app.json (extra.eas.projectId). شغّل "eas init" مرة واحدة.'
-      );
-      return null;
+      return { error: 'EAS projectId غير موجود في الإعدادات' };
     }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-    const token = tokenData?.data;
-    if (!token || !token.startsWith('ExponentPushToken')) {
-      console.warn('Invalid Expo push token:', token);
-      return null;
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      const token = tokenData?.data;
+      if (!token || !String(token).startsWith('ExponentPushToken')) {
+        return { error: 'توكن غير صالح من Expo: ' + String(token) };
+      }
+      console.log('📱 Expo push token:', token);
+      return { token };
+    } catch (e: any) {
+      // غالباً على أندرويد: FCM credentials ناقصة في EAS
+      const msg = e?.message || String(e);
+      console.warn('getExpoPushTokenAsync error:', msg);
+      return {
+        error:
+          'فشل جلب توكن Expo. على أندرويد غالباً تحتاج إعداد FCM في EAS. التفاصيل: ' + msg,
+      };
     }
-    console.log('📱 Expo push token:', token);
-    return token;
   } catch (error: any) {
-    console.warn('Error getting push token:', error?.message || error);
-    return null;
+    return { error: error?.message || String(error) };
   }
 }
 
