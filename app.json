@@ -1,0 +1,77 @@
+{
+  "expo": {
+    "name": "UofK Chem",
+    "slug": "uofk-chem",
+    "version": "1.0.2",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "uofkchem",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.abuk10252.uofkchem"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#002147"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.abuk10252.uofkchem"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "backgroundColor": "#002147",
+          "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "التطبيق محتاج الوصول لصورك عشان ترفعها في الأخبار.",
+          "cameraPermission": "التطبيق محتاج الوصول للكاميرا عشان تلتقط صورة."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "التطبيق محتاج الوصول للميكروفون عشان تسجل رسالة صوتية."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#002147"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "API_URL": "https://server-3xn9.onrender.com/api",
+      "CHEMI_API_URL": "https://chemi-server.onrender.com/api",
+      "router": {},
+      "eas": {
+        "projectId": "e1a8da00-47b6-421d-8aae-ef441407e90e"
+      },
+      "EXPO_PUBLIC_API_URL": "https://server-3xn9.onrender.com/api"
+    }
+  }
+}

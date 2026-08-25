@@ -1,0 +1,9 @@
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+.metro-cache
+dist
+android
+ios
