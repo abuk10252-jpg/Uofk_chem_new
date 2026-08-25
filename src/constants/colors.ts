@@ -1,72 +1,72 @@
 export const LightColors = {
-  // الألوان الأساسية
-  primary: '#002147',
+  primary: '#0B1F3A',
   secondary: '#FFFFFF',
-  accent: '#D4AF37',
+  accent: '#C9A227',
 
-  // الخلفيات
-  background: '#F9FAFB',
+  background: '#F4F6F9',
   surface: '#FFFFFF',
 
-  // النصوص
-  textPrimary: '#0A0A0A',
-  textSecondary: '#4B5563',
+  textPrimary: '#0F172A',
+  textSecondary: '#64748B',
 
-  // الحدود
-  border: '#E5E7EB',
+  border: '#E2E8F0',
 
-  // الحالات
   success: '#10B981',
   error: '#EF4444',
   warning: '#F59E0B',
   info: '#3B82F6',
 
   card: '#FFFFFF',
-  text: '#0A0A0A',
+  text: '#0F172A',
 
-  // ألوان إضافية للتطبيق
-  overlay: 'rgba(0,0,0,0.5)',
-  primaryLight: 'rgba(0,33,71,0.1)',
-  accentLight: 'rgba(212,175,55,0.1)',
-  successLight: 'rgba(16,185,129,0.1)',
-  errorLight: 'rgba(239,68,68,0.1)',
-  warningLight: 'rgba(245,158,11,0.1)',
+  overlay: 'rgba(15,23,42,0.45)',
+  primaryLight: 'rgba(11,31,58,0.08)',
+  accentLight: 'rgba(201,162,39,0.12)',
+  successLight: 'rgba(16,185,129,0.12)',
+  errorLight: 'rgba(239,68,68,0.12)',
+  warningLight: 'rgba(245,158,11,0.12)',
+
+  // WhatsApp-like chat
+  chatBg: '#E8E2D6',
+  bubbleIn: '#FFFFFF',
+  bubbleOut: '#D9FDD3',
+  chatHeader: '#0B1F3A',
 };
 
-// نفس المفاتيح بالظبط بس بألوان الوضع الليلي - عشان أي كود شغال بـ Colors.xxx
-// يفضل شغال زي ما هو من غير أي تعديل في الشاشات نفسها
 export const DarkColors = {
-  primary: '#0A2E5C',
-  secondary: '#1C1C1E',
+  primary: '#1A3A66',
+  secondary: '#121214',
   accent: '#E8C468',
 
-  background: '#0D0D0F',
-  surface: '#1A1A1D',
+  background: '#0B0B0D',
+  surface: '#16161A',
 
-  textPrimary: '#F2F2F2',
-  textSecondary: '#9CA3AF',
+  textPrimary: '#F1F5F9',
+  textSecondary: '#94A3B8',
 
-  border: '#2E2E32',
+  border: '#27272A',
 
   success: '#22C55E',
   error: '#F87171',
   warning: '#FBBF24',
   info: '#60A5FA',
 
-  card: '#1A1A1D',
-  text: '#F2F2F2',
+  card: '#16161A',
+  text: '#F1F5F9',
 
-  overlay: 'rgba(0,0,0,0.7)',
-  primaryLight: 'rgba(10,46,92,0.25)',
+  overlay: 'rgba(0,0,0,0.65)',
+  primaryLight: 'rgba(26,58,102,0.3)',
   accentLight: 'rgba(232,196,104,0.15)',
   successLight: 'rgba(34,197,94,0.15)',
   errorLight: 'rgba(248,113,113,0.15)',
   warningLight: 'rgba(251,191,36,0.15)',
+
+  chatBg: '#0B141A',
+  bubbleIn: '#1F2C34',
+  bubbleOut: '#005C4B',
+  chatHeader: '#1F2C34',
 };
 
-// أوبجكت واحد بيتغير محتواه بس (مش بيتغير المرجع نفسه) لما نبدل الثيم -
-// عشان كل الشاشات اللي عاملة import { Colors } تفضل شغالة زي ما هي بالظبط
-// من غير ما نلمسها، وتاخد الألوان الجديدة أول ما الثيم يتبدل ويعمل remount كامل
 export const Colors: typeof LightColors = { ...LightColors };
 
 export function applyTheme(theme: 'light' | 'dark') {

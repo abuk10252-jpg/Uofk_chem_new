@@ -272,7 +272,7 @@ export default function ProfileTab() {
           ) : user?.profile_pic ? (
             <Image source={{ uri: user.profile_pic }} style={styles.avatarImage} />
           ) : (
-            <Ionicons name="person" size={28} color={Colors.primary} />
+            <Ionicons name="person" size={30} color="#FFF" />
           )}
           <View style={styles.avatarEditBadge}>
             <Ionicons name="camera" size={12} color="#FFF" />
@@ -286,8 +286,8 @@ export default function ProfileTab() {
               {isArabic ? 'الرقم الجامعي: ' : 'ID: '}{user.university_id}
             </Text>
           ) : null}
-          <View style={[styles.roleBadge, { backgroundColor: roleColor + '20' }]}>
-            <Text style={[styles.roleText, { color: roleColor }]}>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>
               {roleLabel}
             </Text>
           </View>
@@ -424,105 +424,120 @@ export default function ProfileTab() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 16 },
+  content: { padding: 20, paddingTop: 12 },
   themeToggleBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.primaryLight,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: Colors.surface,
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: Colors.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   notifDot: {
     width: 10, height: 10, borderRadius: 5,
-    backgroundColor: 'red', position: 'absolute', top: 0, right: 0,
+    backgroundColor: Colors.error, position: 'absolute', top: 0, right: 0,
+    borderWidth: 2, borderColor: Colors.background,
   },
   notifPopup: {
-    backgroundColor: '#FFF', borderRadius: 12, padding: 16,
-    marginBottom: 16, borderWidth: 1, borderColor: Colors.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08, shadowRadius: 12, elevation: 4,
+    backgroundColor: Colors.card, borderRadius: 20, padding: 18,
+    marginBottom: 18, borderWidth: 1, borderColor: Colors.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1, shadowRadius: 20, elevation: 6,
   },
   notifTitle: {
-    fontSize: 16, fontWeight: '700',
-    color: Colors.textPrimary, marginBottom: 12,
+    fontSize: 17, fontWeight: '800',
+    color: Colors.textPrimary, marginBottom: 14, letterSpacing: -0.3,
   },
   notifItem: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 8, borderBottomWidth: 1,
+    paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   notifItemTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-  notifItemBody: { fontSize: 12, color: Colors.textSecondary },
+  notifItemBody: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   seeAllText: {
     fontSize: 13, color: Colors.accent,
-    fontWeight: '600', marginTop: 8, textAlign: 'center',
+    fontWeight: '700', marginTop: 12, textAlign: 'center',
   },
   profileCard: {
-    backgroundColor: '#FFF', padding: 16, borderRadius: 12,
-    flexDirection: 'row', alignItems: 'center', marginBottom: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
+    backgroundColor: Colors.primary, padding: 22, borderRadius: 24,
+    flexDirection: 'row', alignItems: 'center', marginBottom: 22,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25, shadowRadius: 20, elevation: 8,
   },
   avatar: {
-    width: 60, height: 60, borderRadius: 30,
-    backgroundColor: '#EEE', justifyContent: 'center',
-    alignItems: 'center', marginRight: 14, overflow: 'visible',
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center',
+    alignItems: 'center', marginRight: 16, overflow: 'visible',
+    borderWidth: 3, borderColor: Colors.accent,
   },
   avatarImage: {
-    width: 60, height: 60, borderRadius: 30,
+    width: 66, height: 66, borderRadius: 33,
   },
   avatarEditBadge: {
-    position: 'absolute', bottom: -2, right: -2,
-    width: 20, height: 20, borderRadius: 10,
+    position: 'absolute', bottom: 0, right: 0,
+    width: 24, height: 24, borderRadius: 12,
     backgroundColor: Colors.accent,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#FFF',
+    borderWidth: 2, borderColor: Colors.primary,
   },
   profileInfo: { flex: 1 },
-  profileName: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
-  profileEmail: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
+  profileName: { fontSize: 20, fontWeight: '800', color: '#FFF', letterSpacing: -0.3 },
+  profileEmail: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
   roleBadge: {
-    marginTop: 6, paddingHorizontal: 10,
-    paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start',
+    marginTop: 10, paddingHorizontal: 12,
+    paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
-  roleText: { fontSize: 12, fontWeight: '700' },
-  section: { marginBottom: 25 },
+  roleText: { fontSize: 12, fontWeight: '700', color: Colors.accent },
+  section: { marginBottom: 28 },
   sectionTitle: {
-    fontSize: 18, fontWeight: '700',
-    marginBottom: 12, color: Colors.textPrimary,
+    fontSize: 15, fontWeight: '800',
+    marginBottom: 14, color: Colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.8,
   },
   emptyText: { color: Colors.textSecondary, fontSize: 14 },
   courseItem: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', padding: 14,
-    borderRadius: 10, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.border, gap: 10,
+    backgroundColor: Colors.card, padding: 16,
+    borderRadius: 16, marginBottom: 10,
+    borderWidth: 1, borderColor: Colors.border, gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
-  courseItemText: { flex: 1, fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
+  courseItemText: { flex: 1, fontSize: 15, color: Colors.textPrimary, fontWeight: '600' },
   quizCard: {
-    backgroundColor: '#FFF', padding: 16,
-    borderRadius: 12, marginBottom: 12,
+    backgroundColor: Colors.card, padding: 18,
+    borderRadius: 18, marginBottom: 12,
     borderWidth: 1, borderColor: Colors.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
   quizTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
   quizMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
-  quizRow: { flexDirection: 'row', marginTop: 10, gap: 10 },
+  quizRow: { flexDirection: 'row', marginTop: 12, gap: 10 },
   quizBtn: {
     flex: 1, backgroundColor: Colors.accent,
-    paddingVertical: 10, borderRadius: 10,
+    paddingVertical: 12, borderRadius: 14,
     flexDirection: 'row', justifyContent: 'center',
     alignItems: 'center', gap: 6,
   },
   quizBtnText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
   adminLink: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', padding: 14,
-    borderRadius: 10, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.border, gap: 10,
+    backgroundColor: Colors.card, padding: 16,
+    borderRadius: 16, marginBottom: 10,
+    borderWidth: 1, borderColor: Colors.border, gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
-  adminLinkText: { flex: 1, fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
+  adminLinkText: { flex: 1, fontSize: 15, color: Colors.textPrimary, fontWeight: '600' },
   logoutBtn: {
-    backgroundColor: Colors.accent, paddingVertical: 14,
-    borderRadius: 12, flexDirection: 'row',
-    justifyContent: 'center', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.error, paddingVertical: 16,
+    borderRadius: 16, flexDirection: 'row',
+    justifyContent: 'center', alignItems: 'center', gap: 8,
+    shadowColor: Colors.error, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25, shadowRadius: 12, elevation: 4,
   },
-  logoutText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  logoutText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
 });
