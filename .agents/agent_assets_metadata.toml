@@ -1,8 +1,0 @@
-uploads = []
-generated = []
-
-[[outputs]]
-id = "9RFp20eJn9M9n8u8TawH5"
-uri = "file://uofk-chem-project.zip"
-type = "unspecified"
-title = "UofK Chem - Project Files"
