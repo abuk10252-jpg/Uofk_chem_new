@@ -43,6 +43,7 @@ interface NewsItem {
   file_id?: string;
   file_name?: string;
   file_type?: string;
+  quiz_id?: string;
 }
 
 export default function NewsTab() {
@@ -61,8 +62,7 @@ export default function NewsTab() {
   const [submitting, setSubmitting] = useState('');
   const [editModal, setEditModal] = useState(false);
   const [editItem, setEditItem] = useState<NewsItem | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
+  const [editBody, setEditBody] = useState('');
   const [quizResultsModal, setQuizResultsModal] = useState<any>(null);
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   // بيتحكم في إظهار/إخفاء لوحة التعليقات كلها (زي تلجرام: تدوس "كتابة تعليق" عشان تظهر)
@@ -233,17 +233,17 @@ export default function NewsTab() {
   }
 
   async function handleSaveEdit() {
-    if (!editItem || !editTitle.trim()) return;
+    if (!editItem || !editBody.trim()) return;
     try {
       const data = await apiCall(`/news/${editItem.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ title: editTitle, content: editContent }),
+        body: JSON.stringify({ title: editBody.trim(), content: editBody.trim() }),
       });
       if (data) {
         setNews(prev =>
           prev.map(n =>
             n.id === editItem.id
-              ? { ...n, title: editTitle, content: editContent }
+              ? { ...n, title: editBody.trim(), content: editBody.trim() }
               : n
           )
         );
@@ -292,6 +292,13 @@ export default function NewsTab() {
   function getUserReaction(item: NewsItem): string | null {
     if (!user || !item.user_reactions) return null;
     return item.user_reactions[user.id] || null;
+  }
+
+  function isWithin24h(createdAt: string): boolean {
+    if (!createdAt) return true;
+    const t = new Date(createdAt).getTime();
+    if (Number.isNaN(t)) return true;
+    return Date.now() - t < 24 * 60 * 60 * 1000;
   }
 
   function getTotalReactions(reactions: Record<string, number>): number {
@@ -468,11 +475,31 @@ export default function NewsTab() {
           }
         }}
       >
-        <View style={styles.fileNewsIconWrap}>
-          <Ionicons name="document-attach" size={18} color={Colors.accent} />
+        <Ionicons name="document-attach" size={13} color={Colors.accent} />
+        <Text style={styles.fileNewsText} numberOfLines={1}>{content}</Text>
+        <Text style={styles.fileNewsTime}>{formatDate(item.created_at)}</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  function renderQuizResultItem(item: NewsItem) {
+    const title = isArabic && item.title_ar ? item.title_ar : item.title;
+    const content = isArabic && item.content_ar ? item.content_ar : item.content;
+    return (
+      <TouchableOpacity
+        style={styles.quizResultCard}
+        activeOpacity={0.75}
+        onPress={() => {
+          const qid = item.quiz_id || item.id;
+          router.push(`/admin/quiz-results/${qid}`);
+        }}
+      >
+        <View style={styles.quizResultIcon}>
+          <Ionicons name="trophy" size={18} color="#FFD700" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.fileNewsText} numberOfLines={2}>{content}</Text>
+          <Text style={styles.quizResultTitle} numberOfLines={2}>{title}</Text>
+          {!!content && <Text style={styles.quizResultSub} numberOfLines={1}>{content}</Text>}
           <Text style={styles.fileNewsTime}>{formatDate(item.created_at)}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
@@ -482,6 +509,7 @@ export default function NewsTab() {
 
   function renderNewsItem({ item }: { item: NewsItem }) {
     if (item.type === 'file') return renderFileNewsItem(item);
+    if (item.type === 'quiz_result') return renderQuizResultItem(item);
 
     const title = isArabic && item.title_ar ? item.title_ar : item.title;
     const content = isArabic && item.content_ar ? item.content_ar : item.content;
@@ -490,8 +518,47 @@ export default function NewsTab() {
     const isExpanded = expandedComments[item.id];
     const visibleComments = isExpanded ? item.comments : item.comments?.slice(0, 2);
 
+    const isShort = !!(content && content.length < 80 && !item.image && item.type === 'news');
+    const canReact = isWithin24h(item.created_at);
+
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={[styles.card, isShort && styles.cardCompact]}
+        activeOpacity={0.95}
+        onLongPress={() => {
+          if (isAdmin) {
+            Alert.alert(
+              isArabic ? 'خيارات المنشور' : 'Post options',
+              undefined,
+              [
+                {
+                  text: isArabic ? 'تعديل' : 'Edit',
+                  onPress: () => {
+                    setEditItem(item);
+                    setEditBody((title && content && title !== content) ? `${title}\n${content}` : (title || content || ''));
+                    setEditModal(true);
+                  },
+                },
+                {
+                  text: isArabic ? 'حذف' : 'Delete',
+                  style: 'destructive',
+                  onPress: () => handleDelete(item.id),
+                },
+                canReact
+                  ? {
+                      text: isArabic ? 'تفاعل' : 'React',
+                      onPress: () => setShowEmojis(item.id),
+                    }
+                  : null,
+                { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
+              ].filter(Boolean) as any
+            );
+          } else if (canReact) {
+            setShowEmojis(showEmojis === item.id ? '' : item.id);
+          }
+        }}
+        delayLongPress={400}
+      >
 
         {/* هيدر البوست */}
         <View style={styles.cardHeader}>
@@ -515,28 +582,22 @@ export default function NewsTab() {
                 : (isArabic ? 'خبر' : 'News')}
             </Text>
           </View>
-          {isAdmin && (
-            <View style={styles.adminBtns}>
-              <TouchableOpacity
-                onPress={() => {
-                  setEditItem(item);
-                  setEditTitle(title);
-                  setEditContent(content);
-                  setEditModal(true);
-                }}
-              >
-                <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <Ionicons name="trash-outline" size={18} color={Colors.error} />
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
 
-        {/* المحتوى */}
-        <Text style={styles.postTitle}>{title}</Text>
-        {content ? <Text style={styles.postContent}>{content}</Text> : null}
+        {/* المحتوى - حجم ديناميكي للنص القصير */}
+        {(() => {
+          const main =
+            title && content && title.trim() !== content.trim()
+              ? `${title.trim()}\n${content.trim()}`
+              : (title || content || '').trim();
+          if (!main) return null;
+          const isShort = main.length < 100 && !item.image && item.type === 'news';
+          return (
+            <Text style={[styles.postBody, isShort && styles.postBodyCompact]}>
+              {main}
+            </Text>
+          );
+        })()}
 
         {/* Poll */}
         {item.type === 'poll' && renderPoll(item)}
@@ -544,23 +605,18 @@ export default function NewsTab() {
         {/* Quiz */}
         {item.type === 'quiz' && renderQuiz(item)}
 
-        {/* الردود */}
-        <View style={styles.reactionsRow}>
-          <TouchableOpacity
-            style={styles.emojiToggleBtn}
-            onPress={() => setShowEmojis(showEmojis === item.id ? '' : item.id)}
-          >
-            <Text style={styles.emojiToggleText}>
-              {userReaction || '👍'}
-            </Text>
-            {totalReactions > 0 && (
+        {/* عدد الرياكشن فقط إن وُجد - بدون زر ظاهر دائماً */}
+        {totalReactions > 0 && (
+          <View style={styles.reactionsRow}>
+            <View style={styles.emojiToggleBtn}>
+              <Text style={styles.emojiToggleText}>{userReaction || '👍'}</Text>
               <Text style={styles.reactCount}>{totalReactions}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            </View>
+          </View>
+        )}
 
-        {/* لوحة الإيموجي */}
-        {showEmojis === item.id && (
+        {/* لوحة الإيموجي تظهر بعد ضغط مطوّل على البطاقة */}
+        {showEmojis === item.id && isWithin24h(item.created_at) && (
           <View style={styles.emojiPanel}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {EMOJIS.map(emoji => (
@@ -742,7 +798,7 @@ export default function NewsTab() {
           )}
         </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   }
 
@@ -803,17 +859,10 @@ export default function NewsTab() {
               {isArabic ? 'تعديل المنشور' : 'Edit Post'}
             </Text>
             <TextInput
-              style={styles.modalInput}
-              value={editTitle}
-              onChangeText={setEditTitle}
-              placeholder={isArabic ? 'العنوان' : 'Title'}
-              placeholderTextColor={Colors.textSecondary}
-            />
-            <TextInput
-              style={[styles.modalInput, { height: 100, textAlignVertical: 'top' }]}
-              value={editContent}
-              onChangeText={setEditContent}
-              placeholder={isArabic ? 'المحتوى' : 'Content'}
+              style={[styles.modalInput, { height: 120, textAlignVertical: 'top' }]}
+              value={editBody}
+              onChangeText={setEditBody}
+              placeholder={isArabic ? 'نص المنشور' : 'Post text'}
               placeholderTextColor={Colors.textSecondary}
               multiline
             />
@@ -888,41 +937,43 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25, shadowRadius: 12, elevation: 5,
   },
   createBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-  listContent: { padding: 16, paddingBottom: 32 },
+  listContent: { padding: 12, paddingBottom: 28 },
   card: {
-    backgroundColor: Colors.card, borderRadius: 22,
-    padding: 18, marginBottom: 16,
-    shadowColor: '#0B1F3A', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.07, shadowRadius: 16, elevation: 4,
+    backgroundColor: Colors.card, borderRadius: 16,
+    padding: 14, marginBottom: 12,
+    shadowColor: '#0B1F3A', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
     borderWidth: 1, borderColor: Colors.border,
+  },
+  cardCompact: {
+    padding: 10, marginBottom: 8, borderRadius: 14,
   },
   cardHeader: {
     flexDirection: 'row', alignItems: 'center',
-    marginBottom: 12, gap: 8,
+    marginBottom: 8, gap: 8,
   },
   authorAvatar: {
-    width: 42, height: 42, borderRadius: 21,
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: Colors.primaryLight,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    borderWidth: 2, borderColor: Colors.accent + '55',
+    borderWidth: 1.5, borderColor: Colors.accent + '55',
   },
-  authorAvatarImage: { width: 36, height: 36, borderRadius: 18 },
+  authorAvatarImage: { width: 28, height: 28, borderRadius: 14 },
   authorInfo: { flex: 1 },
-  authorName: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
-  postDate: { fontSize: 12, color: Colors.textSecondary },
+  authorName: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+  postDate: { fontSize: 11, color: Colors.textSecondary },
   typeBadge: {
     backgroundColor: Colors.accentLight,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12,
   },
-  typeBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.accent },
+  typeBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.accent },
   adminBtns: { flexDirection: 'row', gap: 12 },
-  postTitle: {
-    fontSize: 18, fontWeight: '800',
-    color: Colors.textPrimary, marginBottom: 8, letterSpacing: -0.3,
+  postBody: {
+    fontSize: 15, fontWeight: '600',
+    color: Colors.textPrimary, lineHeight: 22, marginBottom: 8,
   },
-  postContent: {
-    fontSize: 15, color: Colors.textSecondary,
-    lineHeight: 24, marginBottom: 12,
+  postBodyCompact: {
+    fontSize: 13, fontWeight: '500', lineHeight: 18, marginBottom: 4,
   },
   reactionsRow: { flexDirection: 'row', marginTop: 8, marginBottom: 4 },
   emojiToggleBtn: {
@@ -1020,20 +1071,19 @@ const styles = StyleSheet.create({
   hideCommentsText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   // مربع منشور "ملف جديد" الصغير في فيد الأخبار
   fileNewsCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.card, borderRadius: 16,
-    paddingVertical: 14, paddingHorizontal: 14, marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    paddingVertical: 6, paddingHorizontal: 10, marginBottom: 6,
     borderWidth: 1, borderColor: Colors.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
   fileNewsIconWrap: {
-    width: 34, height: 34, borderRadius: 10,
+    width: 22, height: 22, borderRadius: 6,
     backgroundColor: Colors.accent + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  fileNewsText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
-  fileNewsTime: { fontSize: 11, color: '#999', marginTop: 2 },
+  fileNewsText: { flex: 1, fontSize: 11, color: Colors.textSecondary, fontWeight: '500' },
+  fileNewsTime: { fontSize: 10, color: '#AAA' },
   commentSection: { marginTop: 4, backgroundColor: '#ECE5DD', borderRadius: 14, padding: 10 },
   moreComments: {
     fontSize: 12, color: Colors.accent,

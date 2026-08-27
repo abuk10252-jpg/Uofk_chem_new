@@ -206,6 +206,27 @@ export default function AcademicTab() {
     }
   }
 
+  function openCourseAdminMenu(item: Course) {
+    if (!isAdmin) return;
+    const name = isArabic && item.name_ar ? item.name_ar : item.name;
+    Alert.alert(
+      name,
+      isArabic ? 'اختر إجراء' : 'Choose an action',
+      [
+        {
+          text: isArabic ? 'تعديل' : 'Edit',
+          onPress: () => openEdit(item),
+        },
+        {
+          text: isArabic ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: () => handleDeleteCourse(item),
+        },
+        { text: isArabic ? 'إلغاء' : 'Cancel', style: 'cancel' },
+      ]
+    );
+  }
+
   function renderCourse({ item }: { item: Course }) {
     const courseName = isArabic && item.name_ar ? item.name_ar : item.name;
     const courseDesc = isArabic && item.description_ar
@@ -219,45 +240,32 @@ export default function AcademicTab() {
       <TouchableOpacity
         style={styles.courseCard}
         onPress={() => router.push(`/course/${item.id}`)}
-        activeOpacity={0.7}
+        onLongPress={() => openCourseAdminMenu(item)}
+        delayLongPress={400}
+        activeOpacity={0.75}
       >
         <View style={styles.courseIcon}>
-          <Ionicons name="book" size={24} color={Colors.accent} />
+          <Ionicons name="book" size={15} color={Colors.accent} />
         </View>
 
         <View style={styles.courseInfo}>
           <Text style={styles.courseName} numberOfLines={1}>{courseName}</Text>
           {courseDesc ? (
-            <Text style={styles.courseDesc} numberOfLines={2}>{courseDesc}</Text>
+            <Text style={styles.courseDesc} numberOfLines={1}>{courseDesc}</Text>
           ) : null}
           <View style={styles.courseStats}>
-            <Ionicons name="document-outline" size={12} color={Colors.textSecondary} />
+            <Ionicons name="document-outline" size={11} color={Colors.textSecondary} />
             <Text style={styles.statText}>
               {' '}{fileCount} {isArabic ? 'ملف' : 'files'}
             </Text>
-            <Ionicons name="folder-outline" size={12} color={Colors.textSecondary} style={{ marginLeft: 10 }} />
+            <Ionicons name="folder-outline" size={11} color={Colors.textSecondary} style={{ marginLeft: 8 }} />
             <Text style={styles.statText}>
               {' '}{folderCount} {isArabic ? 'مجلد' : 'folders'}
             </Text>
           </View>
         </View>
 
-        {isAdmin && (
-          <View style={styles.adminActions}>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => openEdit(item)}
-            >
-              <Ionicons name="pencil-outline" size={16} color={Colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: '#FEE2E2' }]}
-              onPress={() => handleDeleteCourse(item)}
-            >
-              <Ionicons name="trash-outline" size={16} color={Colors.error} />
-            </TouchableOpacity>
-          </View>
-        )}
+        <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
       </TouchableOpacity>
     );
   }
@@ -568,25 +576,25 @@ const styles = StyleSheet.create({
   addBtnText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
   courseCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.card, borderRadius: 20,
-    padding: 18, marginBottom: 14,
-    shadowColor: '#0B1F3A', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
+    backgroundColor: Colors.card, borderRadius: 12,
+    paddingVertical: 8, paddingHorizontal: 10, marginBottom: 6,
+    shadowColor: '#0B1F3A', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
     borderWidth: 1, borderColor: Colors.border,
   },
   courseIcon: {
-    width: 56, height: 56, borderRadius: 18,
+    width: 30, height: 30, borderRadius: 8,
     backgroundColor: Colors.accentLight,
-    alignItems: 'center', justifyContent: 'center', marginRight: 16,
+    alignItems: 'center', justifyContent: 'center', marginRight: 8,
   },
   courseInfo: { flex: 1 },
-  courseName: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4, letterSpacing: -0.2 },
-  courseDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 8 },
+  courseName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 1 },
+  courseDesc: { fontSize: 10, color: Colors.textSecondary, lineHeight: 13, marginBottom: 2 },
   courseStats: { flexDirection: 'row', alignItems: 'center' },
-  statText: { fontSize: 12, color: Colors.textSecondary },
+  statText: { fontSize: 10, color: Colors.textSecondary },
   adminActions: { flexDirection: 'column', gap: 6, marginLeft: 8 },
   iconBtn: {
-    width: 32, height: 32, borderRadius: 8,
+    width: 28, height: 28, borderRadius: 8,
     backgroundColor: Colors.background,
     alignItems: 'center', justifyContent: 'center',
   },

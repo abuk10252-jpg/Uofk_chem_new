@@ -32,8 +32,7 @@ export default function CreateNewsScreen() {
   const isArabic = user?.language === 'ar';
 
   const [type, setType] = useState<'news' | 'poll' | 'quiz'>('news');
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  const [bodyText, setBodyText] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [quizQuestions, setQuizQuestions] = useState<QuizQ[]>([
     { question: '', options: ['', '', '', ''], correct_answer: 0 }
@@ -202,10 +201,10 @@ export default function CreateNewsScreen() {
 
   // ========== إنشاء الخبر ==========
   async function handleCreate() {
-    if (!title.trim()) {
+    if (!bodyText.trim()) {
       Alert.alert(
         isArabic ? 'خطأ' : 'Error',
-        isArabic ? 'العنوان مطلوب' : 'Title is required'
+        isArabic ? 'اكتب نص المنشور' : 'Write the post text'
       );
       return;
     }
@@ -256,12 +255,14 @@ export default function CreateNewsScreen() {
         imageUrl = uploaded;
       }
 
+      // حقل واحد: نفس النص يتخزن كعنوان ومحتوى للتوافق مع الـ API القديم
+      const text = bodyText.trim();
       const body: any = {
         type,
-        title: title.trim(),
-        title_ar: title.trim(),
-        content: content.trim(),
-        content_ar: content.trim(),
+        title: text,
+        title_ar: text,
+        content: text,
+        content_ar: text,
         image: imageUrl,
       };
 
@@ -362,24 +363,18 @@ export default function CreateNewsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>{isArabic ? 'العنوان *' : 'Title *'}</Text>
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder={isArabic ? 'أدخل العنوان...' : 'Enter title...'}
-            placeholderTextColor={Colors.textSecondary}
-            editable={!loading}
-          />
-
-          <Text style={styles.label}>{isArabic ? 'المحتوى' : 'Content'}</Text>
+          <Text style={styles.label}>{isArabic ? 'نص المنشور *' : 'Post text *'}</Text>
           <TextInput
             style={[styles.input, styles.multiline]}
-            value={content}
-            onChangeText={setContent}
-            placeholder={isArabic ? 'اكتب المحتوى...' : 'Write content...'}
+            value={bodyText}
+            onChangeText={setBodyText}
+            placeholder={
+              isArabic
+                ? 'اكتب المنشور هنا (سطر واحد أو أكثر)...'
+                : 'Write your post here...'
+            }
             multiline
-            numberOfLines={3}
+            numberOfLines={4}
             placeholderTextColor={Colors.textSecondary}
             editable={!loading}
           />

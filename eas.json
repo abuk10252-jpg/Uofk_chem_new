@@ -19,7 +19,7 @@
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:647909218035:web:6838d2e4e6508c60b44986",
         "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DZPW68YPTW",
         "EXPO_PUBLIC_API_URL": "https://server-3xn9.onrender.com/api",
-        "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-ai.onrender.com/api"
+        "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-server.onrender.com/api"
       }
     },
     "production": {
@@ -36,7 +36,7 @@
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:647909218035:web:6838d2e4e6508c60b44986",
         "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DZPW68YPTW",
         "EXPO_PUBLIC_API_URL": "https://server-3xn9.onrender.com/api",
-        "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-ai.onrender.com/api"
+        "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-server.onrender.com/api"
       }
     }
   }

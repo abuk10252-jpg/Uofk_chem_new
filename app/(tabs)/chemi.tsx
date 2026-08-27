@@ -37,6 +37,25 @@ interface Model {
 
 const STORAGE_KEY = 'chemi_conversations';
 
+
+function formatChemiText(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)')
+    .replace(/\\sqrt\{([^}]+)\}/g, 'جذر($1)')
+    .replace(/\\ge/g, '≥')
+    .replace(/\\le/g, '≤')
+    .replace(/\\infty/g, '∞')
+    .replace(/\\cup/g, '∪')
+    .replace(/\\setminus/g, '∖')
+    .replace(/\\mathbb\{R\}/g, 'R')
+    .replace(/\\to/g, '→');
+}
+
 export default function ChemiScreen() {
   const { user } = useAuth();
   const isArabic = user?.language === 'ar';
@@ -287,7 +306,7 @@ export default function ChemiScreen() {
     return (
       <View style={[styles.msgRow, isMine ? styles.msgRowMine : styles.msgRowBot]}>
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleBot]}>
-          <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>{item.content}</Text>
+          <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>{item.role === 'assistant' ? formatChemiText(item.content) : item.content}</Text>
         </View>
       </View>
     );

@@ -1,0 +1,6 @@
+ضع ملف google-services.json الذي نزّلته من Firebase في هذا المجلد
+(نفس مكان app.json) باسم:
+
+  google-services.json
+
+لا ترفع الملف على GitHub إن كان الريبو عام.
