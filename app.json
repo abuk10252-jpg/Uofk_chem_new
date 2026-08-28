@@ -78,6 +78,13 @@
       },
       "EXPO_PUBLIC_API_URL": "https://server-3xn9.onrender.com/api",
       "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-server.onrender.com/api"
+    },
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#002147",
+      "androidMode": "default",
+      "androidCollapsedTitle": "UofK Chem",
+      "vapidPublicKey": "BBDkM2Z34WF8rVrrQvbe0lz-4T0HneQvYSO0NjxctfZ01I9bEjO50oE0pwlvpNLbk_Dic0hwzPtPSbTRFiO-Mmg"
     }
   }
 }

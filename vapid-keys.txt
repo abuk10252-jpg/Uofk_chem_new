@@ -1,0 +1,3 @@
+EXPO_VAPID_PUBLIC_KEY=BBDkM2Z34WF8rVrrQvbe0lz-4T0HneQvYSO0NjxctfZ01I9bEjO50oE0pwlvpNLbk_Dic0hwzPtPSbTRFiO-Mmg
+EXPO_VAPID_PRIVATE_KEY=ZIuXh_IxKcm1P0bVBbgGrFmlHG9mglSC20X54qZKzJE
+NOTE: public key already in app.json. Keep private key secret.
