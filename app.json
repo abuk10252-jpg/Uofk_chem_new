@@ -77,7 +77,7 @@
         "projectId": "e1a8da00-47b6-421d-8aae-ef441407e90e"
       },
       "EXPO_PUBLIC_API_URL": "https://server-3xn9.onrender.com/api",
-      "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-server.onrender.com/api"
+      "EXPO_PUBLIC_CHEMI_API_URL": "https://chemi-server-1t2i.onrender.com/api"
     },
     "notification": {
       "icon": "./assets/images/icon.png",
