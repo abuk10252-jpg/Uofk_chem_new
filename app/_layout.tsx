@@ -171,6 +171,38 @@ function RootLayoutNav() {
   }, []);
   // ————————————————————————————————————————————————
 
+  // —— إيقاظ السيرفر عند الفتح + عند الرجوع (موبايل وويب) ——
+  useEffect(() => {
+    let stop = wakeServerUntilOk();
+
+    const onAppActive = () => {
+      stop();
+      stop = wakeServerUntilOk();
+    };
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') onAppActive();
+    });
+
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        onAppActive();
+      }
+    };
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisible);
+    }
+
+    return () => {
+      stop();
+      sub.remove();
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisible);
+      }
+    };
+  }, []);
+  // ————————————————————————————————————————————————
+
   useEffect(() => {
     async function loadFonts() {
       try {
