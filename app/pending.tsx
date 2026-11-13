@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
@@ -21,6 +21,18 @@ export default function PendingScreen() {
       setRefreshing(false);
     }
   }
+
+  // تحديث تلقائي: أول ما تفتح الشاشة، كل 4 ثواني، وعند الرجوع للتطبيق
+  // (نفس شغل زر "تحديث" عشان ما تحتاج تدوسو يدوي)
+  useEffect(() => {
+    if (isRejected) return;
+    refreshUser().catch(() => {});
+    const timer = setInterval(() => { refreshUser().catch(() => {}); }, 4000);
+    const sub = AppState.addEventListener('change', st => {
+      if (st === 'active') refreshUser().catch(() => {});
+    });
+    return () => { clearInterval(timer); sub.remove(); };
+  }, [isRejected]);
 
   // ملاحظة: مفيش داعي لـ redirect هنا لو الحالة اتغيّرت - app/_layout.tsx
   // بيراقب user.status تلقائياً وهيوجّه المستخدم لوحده أول ما يتغيّر لـ approved.

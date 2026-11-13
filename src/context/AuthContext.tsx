@@ -65,6 +65,21 @@ async function loadUserCache(): Promise<AuthUser | null> {
   }
 }
 
+
+/** قراءة وثيقة المستخدم مع إعادة محاولة (الاتصال بيكون أحياناً مش جاهز أول ما التطبيق يفتح) */
+async function getUserDocWithRetry(db: Firestore, uid: string, tries = 4, delayMs = 1200) {
+  let lastErr: any;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await getDoc(doc(db, 'users', uid));
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const cached = await loadUserCache();
       if (cached) {
-        setUser(cached);
+        setUser(prev => prev ?? cached);
       }
     })();
 
@@ -97,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         if (firebaseUser && db) {
           try {
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+            const userDoc = await getUserDocWithRetry(db, firebaseUser.uid);
             if (userDoc.exists()) {
               const userData: any = userDoc.data();
               const mapped: AuthUser = {
@@ -116,16 +131,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUser(mapped);
               await saveUserCache(mapped);
             } else {
-              const mapped: AuthUser = {
-                id: firebaseUser.uid,
-                uid: firebaseUser.uid,
-                email: firebaseUser.email!,
-                role: 'student',
-                status: 'pending',
-                language: 'ar',
-              };
-              setUser(mapped);
-              await saveUserCache(mapped);
+              // الوثيقة لسه ما اتكتبت (مثلاً أثناء التسجيل). ما نحفظ "pending" في الكاش
+              // عشان ما يفضل عالق عليها، ولو عندنا كاش معتمد لنفس المستخدم نستخدمه.
+              const cached = await loadUserCache();
+              if (cached && cached.uid === firebaseUser.uid && cached.status === 'approved') {
+                setUser(cached);
+              } else {
+                setUser({
+                  id: firebaseUser.uid,
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email!,
+                  role: 'student',
+                  status: 'pending',
+                  language: 'ar',
+                });
+              }
             }
           } catch (firestoreError) {
             // مفيش نت أو Firestore فشل → استخدم الكاش المحلي

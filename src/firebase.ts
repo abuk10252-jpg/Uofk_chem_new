@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -40,7 +40,14 @@ export function getFirebaseAuth(): Auth {
 
 export function getFirebaseDb(): Firestore {
   if (_db) return _db;
-  _db = getFirestore(getFirebaseApp());
+  const app = getFirebaseApp();
+  try {
+    // في React Native الاتصال العادي بيفشل كتير عند فتح التطبيق ("client is offline")
+    // فبنخلي المكتبة تكتشف وتستخدم long polling تلقائياً.
+    _db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  } catch (e) {
+    _db = getFirestore(app);
+  }
   return _db;
 }
 

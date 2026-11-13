@@ -40,6 +40,68 @@ const NotificationContext = createContext<NotificationContextType>({
   refreshPushToken: async () => ({ ok: false }),
 });
 
+async function registerForPushNotificationsAsync(): Promise<{ token?: string; error?: string }> {
+  try {
+    if (!Device.isDevice && Platform.OS !== 'web') {
+      return { error: 'الإشعارات تحتاج جهاز حقيقي' };
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') {
+      return { error: 'صلاحية الإشعارات مرفوضة' };
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#002147',
+      });
+    }
+
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+
+    if (!projectId) {
+      return { error: 'EAS projectId غير موجود في الإعدادات' };
+    }
+
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      const token = tokenData?.data;
+      if (!token || !String(token).startsWith('ExponentPushToken')) {
+        return { error: 'توكن غير صالح من Expo: ' + String(token) };
+      }
+      console.log('📱 Expo push token:', token);
+      return { token };
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      console.warn('getExpoPushTokenAsync error:', msg);
+      if (Platform.OS === 'web' || /vapidPublicKey/i.test(msg)) {
+        return {
+          error:
+            'إشعارات الويب تحتاج vapidPublicKey في app.json ثم إعادة نشر الويب. الأفضل تثبيت تطبيق APK للإشعارات.',
+        };
+      }
+      if (/FCM|Firebase|GoogleService/i.test(msg)) {
+        return {
+          error: 'فشل جلب توكن Expo. على أندرويد غالباً تحتاج إعداد FCM في EAS.',
+        };
+      }
+      return { error: 'فشل جلب توكن الإشعارات: ' + msg };
+    }
+  } catch (error: any) {
+    return { error: error?.message || String(error) };
+  }
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
@@ -52,7 +114,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const savingRef = useRef(false);
 
   useEffect(() => {
-    // تأخير بسيط عشان الصلاحيات والـ auth يجهزوا
     const t = setTimeout(() => {
       registerForPushNotificationsAsync().then(result => {
         if (result.token) {
@@ -66,11 +127,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     notificationListener.current = Notifications.addNotificationReceivedListener(n => {
       setNotification(n);
-      setUnreadCount(prev => prev + 1);
+      setUnreadCount(c => c + 1);
     });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response);
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(() => {
+      setUnreadCount(0);
     });
 
     const appStateSub = AppState.addEventListener('change', state => {
@@ -96,7 +157,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  // لما اليوزر أو التوكن يتغير — احفظ (مع إعادة محاولة)
   useEffect(() => {
     if (!expoPushToken || !user?.uid) return;
     if (user.uid === 'local-test-super-admin') return;
@@ -141,26 +201,59 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       console.log('✅ push_token saved to Firestore for', uid);
       ok = true;
     } catch (e: any) {
-      const msg = e?.message || String(e);
-      console.warn('getExpoPushTokenAsync error:', msg);
-      if (Platform.OS === 'web' || /vapidPublicKey/i.test(msg)) {
-        return {
-          error: 'إشعارات الويب تحتاج vapidPublicKey في app.json ثم إعادة نشر الويب. الأفضل تثبيت تطبيق APK للإشعارات.',
-        };
-      }
-      if (/FCM|Firebase|GoogleService/i.test(msg)) {
-        return {
-          error: 'فشل جلب توكن Expo. على أندرويد غالباً تحتاج إعداد FCM في EAS.',
-        };
-      }
-      return {
-        error: 'فشل جلب توكن الإشعارات: ' + msg,
-      };
-
+      console.warn('Firestore push_token save failed:', e?.message || e);
     }
-  } catch (error: any) {
-    return { error: error?.message || String(error) };
+
+    try {
+      await apiPost('/auth/push-token', { push_token: token, platform: Platform.OS });
+      console.log('✅ push_token sent to API');
+      ok = true;
+    } catch (e: any) {
+      console.warn('API push_token save failed:', e?.message || e);
+    }
+
+    savingRef.current = false;
+    return ok;
   }
+
+  async function refreshPushToken() {
+    const result = await registerForPushNotificationsAsync();
+    if (result.token) {
+      setExpoPushToken(result.token);
+      setLastError(null);
+      lastSavedTokenRef.current = null;
+      if (user?.uid) {
+        await savePushToken(user.uid, result.token);
+        lastSavedTokenRef.current = result.token;
+      }
+      return { ok: true, token: result.token };
+    }
+    if (result.error) setLastError(result.error);
+    return { ok: false, error: result.error };
+  }
+
+  async function sendLocalNotification(title: string, body: string, data?: any) {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, data: data || {}, sound: true },
+      trigger: null,
+    });
+  }
+
+  return (
+    <NotificationContext.Provider
+      value={{
+        expoPushToken,
+        notification,
+        unreadCount,
+        lastError,
+        clearUnreadCount: () => setUnreadCount(0),
+        sendLocalNotification,
+        refreshPushToken,
+      }}
+    >
+      {children}
+    </NotificationContext.Provider>
+  );
 }
 
 export function useNotifications() {

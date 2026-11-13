@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, AppState, Platform } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
@@ -7,8 +7,55 @@ import { ThemeProvider } from '../src/context/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
+import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent';
 
 SplashScreen.preventAutoHideAsync();
+
+// ========== إيقاظ السيرفر (معزول — ما يؤثر على باقي التطبيق) ==========
+const API_URL = 'https://server-3xn9.onrender.com'; // غيّره إذا رابطك مختلف
+const MAX_TRIES = 5;
+const RETRY_MS = 4000;
+
+async function pingHealth(): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    const res = await fetch(`${API_URL}/api/health`, {
+      method: 'GET',
+      signal: ctrl.signal,
+      cache: 'no-store',
+    });
+    clearTimeout(t);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** يحاول لين أول نجاح ثم يقف. فشل نهائي = يقف بهدوء. ما يرمي error. */
+function wakeServerUntilOk() {
+  let tries = 0;
+  let stopped = false;
+
+  const stop = () => {
+    stopped = true;
+  };
+
+  const tick = async () => {
+    if (stopped) return;
+    tries += 1;
+    const ok = await pingHealth();
+    if (ok || tries >= MAX_TRIES) {
+      stopped = true;
+      return;
+    }
+    setTimeout(tick, RETRY_MS);
+  };
+
+  tick();
+  return stop;
+}
+// =====================================================================
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   constructor(props: any) {
@@ -51,7 +98,7 @@ function GlobalCrashCatcher({ children }: { children: React.ReactNode }) {
     const defaultHandler = global.ErrorUtils?.getGlobalHandler?.();
     // @ts-ignore
     global.ErrorUtils?.setGlobalHandler?.((error: any, isFatal?: boolean) => {
-      setFatalError(`${isFatal ? '[Fatal] ' : ''}${error?.message || error}\n\n${error?.stack || ''}`);
+      setFatalError(`\( {isFatal ? '[Fatal] ' : ''} \){error?.message || error}\n\n${error?.stack || ''}`);
     });
     return () => {
       // @ts-ignore
@@ -83,6 +130,46 @@ function RootLayoutNav() {
   const router = useRouter();
   const [fontLoaded, setFontLoaded] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const { hasShareIntent } = useShareIntentContext();
+
+  // لو جا ملف من قائمة المشاركة والمستخدم مسجّل دخول ومعتمد، وديه شاشة المشاركة
+  useEffect(() => {
+    if (!hasShareIntent) return;
+    if (!user || user.status !== 'approved') return; // يسجّل دخول أول، وبعدين يرجع هنا
+    if (segments[0] !== 'shareintent') router.push('/shareintent');
+  }, [hasShareIntent, user, segments]);
+
+  // —— إيقاظ السيرفر عند الفتح + عند الرجوع (موبايل وويب) ——
+  useEffect(() => {
+    let stop = wakeServerUntilOk();
+
+    const onAppActive = () => {
+      stop();
+      stop = wakeServerUntilOk();
+    };
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') onAppActive();
+    });
+
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        onAppActive();
+      }
+    };
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisible);
+    }
+
+    return () => {
+      stop();
+      sub.remove();
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisible);
+      }
+    };
+  }, []);
+  // ————————————————————————————————————————————————
 
   useEffect(() => {
     async function loadFonts() {
@@ -162,6 +249,7 @@ function RootLayoutNav() {
       <Stack.Screen name="super-admin/index" options={{ title: 'المشرف العام' }} />
       <Stack.Screen name="super-admin/manage-roles" options={{ title: 'إدارة الصلاحيات' }} />
       <Stack.Screen name="super-admin/settings" options={{ title: 'الإعدادات' }} />
+      <Stack.Screen name="shareintent" options={{ title: 'مشاركة', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="course/[id]" options={{ title: 'المقرر' }} />
       <Stack.Screen name="notifications/index" options={{ title: 'الإشعارات', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="+html" options={{ headerShown: false }} />
@@ -176,8 +264,10 @@ export default function RootLayout() {
         <AuthProvider>
           <NotificationProvider>
             <ThemeProvider>
-              <StatusBar style="auto" />
-              <RootLayoutNav />
+              <ShareIntentProvider options={{ resetOnBackground: false }}>
+                <StatusBar style="auto" />
+                <RootLayoutNav />
+              </ShareIntentProvider>
             </ThemeProvider>
           </NotificationProvider>
         </AuthProvider>
