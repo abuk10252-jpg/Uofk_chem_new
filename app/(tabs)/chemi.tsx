@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiCall, uploadFile, CHEMI_BASE_URL } from '../../src/utils/api';
 import { Colors } from '../../src/constants/colors';
@@ -81,6 +82,10 @@ export default function ChemiScreen() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConvId, setCurrentConvId] = useState<string>('c' + Date.now());
+
+  // نسخ / تعديل / إعادة إرسال
+  const [actionIndex, setActionIndex] = useState<number | null>(null);
+  const [showMsgActions, setShowMsgActions] = useState(false);
 
   const listRef = useRef<FlatList>(null);
 
@@ -301,14 +306,92 @@ export default function ChemiScreen() {
     }
   }
 
-  function renderMessage({ item }: { item: ChatMessage }) {
+  async function copyMessage(content: string) {
+    try {
+      await Clipboard.setStringAsync(content);
+      Alert.alert(isArabic ? 'تم النسخ' : 'Copied', isArabic ? 'الرسالة اتنسخت' : 'Message copied');
+    } catch {
+      Alert.alert('Error', 'Failed to copy');
+    }
+    setShowMsgActions(false);
+  }
+
+  function startEditMessage(index: number) {
+    const msg = messages[index];
+    if (!msg || msg.role !== 'user') return;
+    // امسح الرسالة دي وكل اللي بعدها، وحط النص في خانة الإدخال
+    setMessages(prev => prev.slice(0, index));
+    setText(msg.content.replace(/\s*📎\s*.+$/, '').trim()); // شيل اسم الملف لو موجود
+    setShowMsgActions(false);
+  }
+
+  function resendMessage(index: number) {
+    const msg = messages[index];
+    if (!msg || msg.role !== 'user') return;
+    const cleanText = msg.content.replace(/\s*📎\s*.+$/, '').trim();
+    const historyBefore = messages.slice(0, index);
+    setMessages(historyBefore);
+    setText('');
+    setShowMsgActions(false);
+    // ابعت مباشرة بالـ history الصحيح
+    sendMessageWithText(cleanText, historyBefore);
+  }
+
+  async function sendMessageWithText(overrideText: string, historyOverride?: ChatMessage[]) {
+    const trimmed = overrideText.trim();
+    if (!trimmed && !attachedFile) return;
+
+    const label = attachedFile ? `${trimmed} 📎 ${attachedFile.name}` : trimmed;
+    const historyToSend = historyOverride !== undefined ? historyOverride : messages;
+
+    setMessages(prev => [...prev, { role: 'user', content: label }]);
+    setText('');
+    setSending(true);
+
+    try {
+      const formData = new FormData();
+      if (attachedFile?.type === 'text/course-file' && (attachedFile as any).text) {
+        formData.append('message', `${trimmed}\n\n[محتوى الملف: ${attachedFile.name}]\n${(attachedFile as any).text}`);
+      } else {
+        formData.append('message', trimmed);
+        if (attachedFile) {
+          formData.append('file', { uri: attachedFile.uri, name: attachedFile.name, type: attachedFile.type } as any);
+        }
+      }
+      formData.append('history', JSON.stringify(historyToSend));
+      if (selectedModel) formData.append('model', selectedModel);
+
+      const data = await uploadFile('/ai/chat', formData, CHEMI_BASE_URL);
+
+      setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
+      persistTurn(label, data.answer);
+      removeAttachedFile();
+    } catch (e: any) {
+      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ ' + (e?.message || 'حصل خطأ') }]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function openMessageActions(index: number) {
+    setActionIndex(index);
+    setShowMsgActions(true);
+  }
+
+  function renderMessage({ item, index }: { item: ChatMessage; index: number }) {
     const isMine = item.role === 'user';
     return (
-      <View style={[styles.msgRow, isMine ? styles.msgRowMine : styles.msgRowBot]}>
+      <Pressable
+        onLongPress={() => openMessageActions(index)}
+        delayLongPress={350}
+        style={[styles.msgRow, isMine ? styles.msgRowMine : styles.msgRowBot]}
+      >
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleBot]}>
-          <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>{item.role === 'assistant' ? formatChemiText(item.content) : item.content}</Text>
+          <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
+            {item.role === 'assistant' ? formatChemiText(item.content) : item.content}
+          </Text>
         </View>
-      </View>
+      </Pressable>
     );
   }
 
@@ -516,6 +599,61 @@ export default function ChemiScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* قائمة إجراءات الرسالة (نسخ / تعديل / إعادة إرسال) */}
+      <Modal
+        visible={showMsgActions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMsgActions(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowMsgActions(false)}>
+          <View style={styles.msgActionsCard}>
+            <Text style={styles.msgActionsTitle}>
+              {isArabic ? 'خيارات الرسالة' : 'Message options'}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.msgActionBtn}
+              onPress={() => {
+                if (actionIndex !== null) copyMessage(messages[actionIndex]?.content || '');
+              }}
+            >
+              <Ionicons name="copy-outline" size={20} color={Colors.primary} />
+              <Text style={styles.msgActionText}>{isArabic ? 'نسخ' : 'Copy'}</Text>
+            </TouchableOpacity>
+
+            {actionIndex !== null && messages[actionIndex]?.role === 'user' && (
+              <>
+                <TouchableOpacity
+                  style={styles.msgActionBtn}
+                  onPress={() => startEditMessage(actionIndex)}
+                >
+                  <Ionicons name="create-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.msgActionText}>{isArabic ? 'تعديل' : 'Edit'}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.msgActionBtn}
+                  onPress={() => resendMessage(actionIndex)}
+                >
+                  <Ionicons name="refresh-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.msgActionText}>{isArabic ? 'إعادة إرسال' : 'Resend'}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={[styles.msgActionBtn, { marginTop: 6 }]}
+              onPress={() => setShowMsgActions(false)}
+            >
+              <Text style={[styles.msgActionText, { color: Colors.textSecondary }]}>
+                {isArabic ? 'إلغاء' : 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -625,4 +763,33 @@ const styles = StyleSheet.create({
   courseRowText: { flex: 1, fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
   fileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingRight: 24 },
   fileRowText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary },
+
+  // إجراءات الرسالة
+  msgActionsCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
+    padding: 18,
+    marginHorizontal: 40,
+    marginBottom: '35%',
+  },
+  msgActionsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  msgActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  msgActionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
 });
